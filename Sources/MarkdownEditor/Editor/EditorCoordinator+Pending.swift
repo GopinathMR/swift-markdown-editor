@@ -9,7 +9,6 @@ extension EditorCoordinator {
   func handlePaste(plain: Bool) -> Bool { false }
   func handleCopy() -> Bool { false }
   func handleDrop(_ info: NSDraggingInfo) -> Bool { false }
-  func decorateContextMenu(_ menu: NSMenu, at point: CGPoint) {}
   func viewportDidScroll() {}
   func overlaysNeedUpdate() {}
   func selectionDidChangeHooks() { updateSubstitutionContext() }
@@ -20,4 +19,9 @@ extension EditorCoordinator {
 
 extension EditorCoordinator {
   func focusAlpha(for fragment: NSTextLayoutFragment) -> CGFloat { 1 }
+}
+
+extension EditorCoordinator {
+  func decorateImageMenu(_ menu: NSMenu, index: Int) {}
+  func decorateTableMenu(_ menu: NSMenu, index: Int) {}
 }

@@ -465,10 +465,12 @@ final class Styler {
     }
     guard let content, content.length > 0 else { return }
     let body = trimTrailingNewline(content)
-    if let language, !language.isEmpty, let first = Optional(lineStart(body.location)) {
-      let d = deco(first)
-      d.label = language
+    // Fenced blocks get a clickable language label; empty while the caret is elsewhere.
+    if !b.markers.isEmpty, (language?.isEmpty == false) || revealed {
+      let d = deco(lineStart(body.location))
+      d.label = language?.isEmpty == false ? language : "language"
       d.labelColor = theme.secondary
+      codeLabels.append((body, b.markers[0].shifted(by: offset)))
     }
     if preferences.codeLineNumbers {
       var n = 1
@@ -545,8 +547,8 @@ final class Styler {
     d.inset = ctx.indent
     let h = result.error != nil && result.image == nil ? 22 : size.height
     spec(lastLine) { s in
-      s.first = ctx.indent
-      s.head = ctx.indent
+      s.first = max(s.first, ctx.indent)
+      s.head = max(s.head, ctx.indent)
       s.after = h + gap * 2 * theme.zoom
     }
   }
@@ -686,7 +688,11 @@ final class Styler {
 
   var mediaBlocks: [(range: NSRange, size: CGSize, indent: CGFloat, media: MediaEmbed)] = []
 
+  /// Code blocks with a label in the last pass: (content range, opening fence line).
+  var codeLabels: [(content: NSRange, fence: NSRange)] = []
+
   func resetOverlayRecords() {
+    codeLabels.removeAll()
     tableBlocks.removeAll()
     tocBlocks.removeAll()
     mediaBlocks.removeAll()

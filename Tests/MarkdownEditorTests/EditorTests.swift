@@ -144,3 +144,21 @@ final class Harness {
   h.c.setMode(.rendered)
   #expect(h.tv.textLayoutManager != nil)
 }
+
+@MainActor @Test func codeBlocksAreHighlighted() {
+  let h = Harness("```swift\nlet x = \"hi\"\n```\n\nafter\n")
+  h.caret(25)
+  let theme = h.c.styler.theme
+  let kw = h.c.storage.attribute(.foregroundColor, at: 9, effectiveRange: nil) as? NSColor
+  #expect(kw == theme.tokenColors["keyword"])
+  let str = h.c.storage.attribute(.foregroundColor, at: 18, effectiveRange: nil) as? NSColor
+  #expect(str == theme.tokenColors["string"])
+  #expect(CodeHighlighter.language(named: "py")?.tsName == "python")
+  #expect(CodeHighlighter.languageNames.count >= 38)
+}
+
+@MainActor @Test func languagePickerRewritesInfoString() {
+  let h = Harness("```js\ncode\n```\n")
+  h.c.setLanguage("typescript", fence: NSRange(location: 0, length: 5))
+  #expect(h.c.storage.string == "```typescript\ncode\n```\n")
+}

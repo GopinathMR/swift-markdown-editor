@@ -56,6 +56,7 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
     let resolved = ResolvedTheme(style: theme.light, zoom: 1, isDark: false)
     styler = Styler(theme: resolved, preferences: preferences, renders: renders)
     styler.documentURL = documentURL
+    styler.highlighter = CodeHighlighter()
     super.init()
     renderBox.coordinator = self
 

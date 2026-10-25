@@ -6,6 +6,7 @@ extension EditorCoordinator {
   /// Checkbox toggles, ⌘-click links, TOC rows. Returns true when the click was consumed.
   func handleClick(at point: CGPoint, command: Bool) -> Bool {
     guard mode == .rendered else { return false }
+    if handleCodeLabelClick(at: point) { return true }
     let idx = textView.characterIndexForInsertion(at: point)
     // Task boxes: the box is drawn over the hidden `[ ]`, so test geometry, not the index.
     for i in max(0, idx - 5)...min(storage.length, idx + 1) where i < storage.length {
