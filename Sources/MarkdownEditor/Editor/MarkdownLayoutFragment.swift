@@ -15,7 +15,8 @@ final class MarkdownLayoutFragment: NSTextLayoutFragment {
 
   override var renderingSurfaceBounds: CGRect {
     let f = layoutFragmentFrame
-    let full = CGRect(x: -f.minX, y: 0, width: containerWidth + 40, height: f.height)
+    // Reach into the left margin too: heading numbers and list markers draw there.
+    let full = CGRect(x: -f.minX - 80, y: 0, width: containerWidth + 120, height: f.height)
     return super.renderingSurfaceBounds.union(full)
   }
 

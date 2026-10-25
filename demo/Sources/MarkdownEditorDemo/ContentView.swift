@@ -5,6 +5,7 @@ struct ContentView: View {
   @Bindable var document: DemoDocument
   @State private var controller = MarkdownEditorController()
   @State private var preferences = DemoPreferences.launchPreferences()
+  @State private var theme = DemoPreferences.launchTheme()
   @State private var showOutline =
     UserDefaults.standard.object(forKey: "outline") == nil
     || UserDefaults.standard.bool(forKey: "outline")
@@ -16,11 +17,12 @@ struct ContentView: View {
     } detail: {
       MarkdownEditor(
         text: $document.text, documentURL: document.url, controller: controller,
-        preferences: preferences
+        preferences: preferences, theme: theme
       )
       .safeAreaInset(edge: .bottom, spacing: 0) { StatusBar(controller: controller) }
     }
     .focusedSceneValue(\.markdownEditorController, controller)
+    .preferredColorScheme(UserDefaults.standard.bool(forKey: "light") ? .light : nil)
     .navigationTitle(
       (document.url?.lastPathComponent ?? "Untitled") + (document.isDirty ? " — Edited" : "")
     )

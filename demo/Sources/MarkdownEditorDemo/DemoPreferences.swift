@@ -2,6 +2,18 @@ import Foundation
 import MarkdownEditor
 
 enum DemoPreferences {
+  /// `-theme <file.toml>` loads a theme file; errors print and fall back to the default.
+  static func launchTheme() -> EditorTheme {
+    guard let path = UserDefaults.standard.string(forKey: "theme") else { return .default }
+    do {
+      return try EditorTheme.load(
+        toml: String(contentsOfFile: (path as NSString).expandingTildeInPath, encoding: .utf8))
+    } catch {
+      print("Theme error: \(error)")
+      return .default
+    }
+  }
+
   /// Everything optional on, so the demo shows every feature.
   static func launchPreferences() -> EditorPreferences {
     var p = EditorPreferences()

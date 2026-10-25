@@ -378,3 +378,32 @@ final class Harness {
   #expect(s.words == 5)
   #expect(s.lines == 4)
 }
+
+@Test func themeFilesLoadAndReportErrors() throws {
+  let t = try EditorTheme.load(
+    toml: """
+      [light]
+      body-font = { family = "Georgia", size = 18 }
+      heading-numbering = true
+      max-width = 700
+      [light.colors]
+      link = "#FF0000"
+      [dark.code-tokens]
+      keyword = "#00FF00"
+      """)
+  #expect(t.light.bodyFont == "Georgia" && t.light.baseSize == 18)
+  #expect(t.light.headingNumbering && t.light.maxWidth == 700)
+  #expect(t.light.colors.link == "#FF0000")
+  #expect(t.light.colors.text == ThemeStyle.defaultLight.colors.text)
+  #expect(t.dark.codeTokens["keyword"] == "#00FF00")
+  #expect(t.light.css().contains("counter-increment: h1"))
+  #expect(throws: ThemeError.self) { try EditorTheme.load(toml: "[light]\nmax-width = \"wide\"") }
+  #expect(throws: ThemeError.self) {
+    try EditorTheme.load(toml: "[light.colors]\nlinkk = \"#000\"")
+  }
+  do {
+    _ = try EditorTheme.load(toml: "[light]\nmax-width = = 3")
+  } catch let e as ThemeError {
+    #expect(e.description.hasPrefix("Line 2"))
+  }
+}
