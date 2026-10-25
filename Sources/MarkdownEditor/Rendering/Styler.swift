@@ -35,6 +35,30 @@ final class Styler {
     self.renders = renders
   }
 
+  // MARK: Render requests
+
+  /// Entry start → requests it is waiting on, so a finished render restyles just its owners.
+  private(set) var waiting: [RenderRequest: Set<Int>] = [:]
+  private var currentEntryStart = 0
+
+  private func render(_ request: RenderRequest) -> RenderResult? {
+    if let r = renders.result(for: request) { return r }
+    waiting[request, default: []].insert(currentEntryStart)
+    return nil
+  }
+
+  private func debounced(_ request: RenderRequest, key: Int) -> RenderResult? {
+    if renders.peek(request) == nil { waiting[request, default: []].insert(currentEntryStart) }
+    return renders.result(for: request, debounceKey: key)
+  }
+
+  /// Entry starts waiting on any of `done`; forgets them.
+  func owners(of done: Set<RenderRequest>) -> Set<Int> {
+    var out: Set<Int> = []
+    for r in done { if let o = waiting.removeValue(forKey: r) { out.formUnion(o) } }
+    return out
+  }
+
   // MARK: Output
 
   private var text: NSString = ""
@@ -70,6 +94,7 @@ final class Styler {
       guard end > start else { continue }
       let full = NSRange(location: start, length: end - start)
       runs.removeAll(keepingCapacity: true)
+      currentEntryStart = entries[i].start
       lineDecos.removeAll(keepingCapacity: true)
       lineStyles.removeAll(keepingCapacity: true)
       forEachLine(full) { line in lineStyles[line.location] = baseSpec }
@@ -540,7 +565,7 @@ final class Styler {
     let abs = trimTrailingNewline(b.range.shifted(by: offset))
     let cached =
       debounce && revealed
-      ? renders.result(for: request, debounceKey: abs.location) : renders.result(for: request)
+      ? debounced(request, key: abs.location) : render(request)
     guard let result = cached else {
       // Not rendered yet: show the source until it is.
       styleSourceBox(abs, ctx: ctx)
@@ -595,7 +620,7 @@ final class Styler {
   private func renderBlockImage(_ img: Inline, block: NSRange, ctx: Ctx) -> Bool {
     guard case .image(let src, _) = img.kind, let url = resolveURL(src) else { return false }
     let abs = trimTrailingNewline(block)
-    guard var result = renders.result(for: .image(url)) else { return false }
+    guard var result = render(.image(url)) else { return false }
     result.size = ImageTag.apply(img.size, natural: result.size, width: contentWidth(ctx))
     applyCtx(abs, ctx)
     // A missing image keeps its source visible, with the path under it.
@@ -755,7 +780,7 @@ final class Styler {
       let req = RenderRequest.math(
         latex: latex, display: false, dark: theme.isDark, fontSize: f.size ?? theme.body.pointSize,
         number: nil)
-      if !rev, let res = renders.result(for: req), let img = res.image {
+      if !rev, let res = render(req), let img = res.image {
         substitute(r, with: InlineDecoration(.image(img, size: res.size, baseline: res.descent)))
         spec(r.location) { s in s.minHeight = max(s.minHeight, res.size.height + 4) }
       } else {
@@ -766,7 +791,7 @@ final class Styler {
               size: (f.size ?? theme.body.pointSize) * 0.88, bold: false, italic: false, mono: true),
             .foregroundColor: rev ? theme.text : theme.secondary,
           ])
-        if let res = renders.result(for: req), res.error != nil {
+        if let res = render(req), res.error != nil {
           add(
             r,
             [
@@ -855,7 +880,7 @@ final class Styler {
   }
 
   private func styleInlineImage(_ i: Inline, _ r: NSRange, src: String, reveal: Bool) {
-    guard let url = resolveURL(src), let res = renders.result(for: .image(url)),
+    guard let url = resolveURL(src), let res = render(.image(url)),
       let img = res.image, !reveal
     else {
       add(r, [.foregroundColor: theme.secondary])

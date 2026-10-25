@@ -23,7 +23,9 @@ struct RenderResult {
 final class RenderCache {
   typealias Renderer = @MainActor (RenderRequest) async -> RenderResult
 
-  var onReady: (() -> Void)?
+  /// Fired once per burst with the requests that finished.
+  var onReady: ((Set<RenderRequest>) -> Void)?
+  private var finished: Set<RenderRequest> = []
   private var results: [RenderRequest: RenderResult] = [:]
   private var pending: Set<RenderRequest> = []
   private var order: [RenderRequest] = []
@@ -86,12 +88,16 @@ final class RenderCache {
       results[drop] = nil
     }
     // Coalesce a burst of finished renders into one restyle.
+    finished.insert(request)
     guard !readyScheduled else { return }
     readyScheduled = true
     DispatchQueue.main.async { [weak self] in
       MainActor.assumeIsolated {
-        self?.readyScheduled = false
-        self?.onReady?()
+        guard let self else { return }
+        self.readyScheduled = false
+        let done = self.finished
+        self.finished.removeAll()
+        self.onReady?(done)
       }
     }
   }

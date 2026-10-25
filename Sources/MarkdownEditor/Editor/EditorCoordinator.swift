@@ -90,7 +90,13 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
     storage.delegate = self
     layoutManager.delegate = self
     textView.onWidthChange = { [weak self] w in self?.containerWidthChanged(w) }
-    renders.onReady = { [weak self] in self?.keepingViewport { self?.restyleAll() } }
+    renders.onReady = { [weak self] done in
+      guard let self else { return }
+      // Restyle only the entries that were waiting on these renders.
+      let indices = IndexSet(
+        self.styler.owners(of: done).compactMap { self.model.entryIndex(at: $0) })
+      self.keepingViewport { self.restyle(indices) }
+    }
 
     scrollView.documentView = textView
     scrollView.hasVerticalScroller = true
