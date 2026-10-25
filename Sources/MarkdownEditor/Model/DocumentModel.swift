@@ -164,3 +164,16 @@ extension NSRange {
     caret.location <= end && caret.end >= location
   }
 }
+
+extension DocumentModel {
+  /// Every block (any depth) matching `predicate`, with its absolute offset.
+  func blocks(where predicate: (BlockKind) -> Bool) -> [(block: Block, offset: Int)] {
+    var out: [(Block, Int)] = []
+    func walk(_ b: Block, _ off: Int) {
+      if predicate(b.kind) { out.append((b, off)) }
+      for c in b.children { walk(c, off) }
+    }
+    for e in entries { walk(e.block, e.start) }
+    return out
+  }
+}

@@ -5,7 +5,10 @@ extension EditorCoordinator {
   /// A click on a code block's language label opens the picker.
   func handleCodeLabelClick(at point: CGPoint) -> Bool {
     guard let inset = textView.textContainer?.size.width else { return false }
-    for (content, fence) in styler.codeLabels {
+    let fenced = model.blocks { if case .code = $0 { return true } else { return false } }
+    for (b, off) in fenced where !b.markers.isEmpty {
+      guard let content = b.content?.shifted(by: off), content.length > 0 else { continue }
+      let fence = b.markers[0].shifted(by: off)
       let line = rectInView(for: NSRange(location: content.location, length: 0))
       let right = textView.textContainerOrigin.x + inset - 5
       let hit = CGRect(x: right - 110, y: line.minY - 4, width: 110, height: line.height + 6)

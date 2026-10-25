@@ -19,6 +19,7 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
   var onTextChange: ((String) -> Void)?
   let container: EditorContainerView
   let find = FindModel()
+  let overlays = OverlayState()
 
   private(set) var model = DocumentModel()
   var preferences: EditorPreferences
@@ -208,11 +209,13 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
       // The caret at an entry's very start also touches the previous entry's end.
       if let i = model.entryIndex(at: max(0, loc - 1)) { indices.insert(i) }
     }
+    let old = lastSelection
     lastSelection = sel
     styler.selection = sel
     restyle(indices)
     controller?.selectionDidChange(sel, model: model)
     selectionDidChangeHooks()
+    enterTableIfNeeded(from: old)
   }
 
   nonisolated func textLayoutManager(
@@ -232,7 +235,6 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
   func restyle(_ indices: IndexSet) {
     guard !indices.isEmpty else { return }
     isProgrammaticEdit = true
-    styler.resetOverlayRecords()
     styler.apply(indices, to: storage)
     isProgrammaticEdit = false
     textView.typingAttributes = styler.baseAttributes()

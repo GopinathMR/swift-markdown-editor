@@ -29,7 +29,7 @@ extension EditorCoordinator {
     case .decreaseHeading:
       let l = currentHeadingLevel() ?? 6
       setHeading(l >= 6 ? 0 : l + 1)
-    case .table: insertBlock("|   |   |\(eol)| - | - |\(eol)|   |   |", caret: 2)
+    case .table: insertTableWithPicker()
     case .codeFence: wrapBlock(open: "```", close: "```")
     case .mathBlock: wrapBlock(open: "$$", close: "$$")
     case .quote: togglePrefix("> ", pattern: #"^\s*>\s?"#)

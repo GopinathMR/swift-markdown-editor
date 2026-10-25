@@ -139,8 +139,12 @@ extension EditorCoordinator {
   }
 
   private func tocRows(near point: CGPoint) -> ([(CGRect, String)], CGPoint)? {
-    for (range, rows) in styler.tocBlocks {
+    let width = (textView.textContainer?.size.width ?? 600) - 10
+    for (b, off) in model.blocks(where: { $0 == .toc }) {
+      let range = b.range.shifted(by: off)
+      let rows = TOCRenderer.image(model.headings, theme: styler.theme, width: width).rows
       let rect = rectInView(for: NSRange(location: range.location, length: 0))
+
       // The TOC render is drawn after the (hidden) `[toc]` line, inset like body text.
       let origin = CGPoint(
         x: textView.textContainerOrigin.x + (textView.textContainer?.lineFragmentPadding ?? 5),

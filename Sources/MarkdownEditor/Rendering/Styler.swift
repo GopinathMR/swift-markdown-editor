@@ -470,7 +470,6 @@ final class Styler {
       let d = deco(lineStart(body.location))
       d.label = language?.isEmpty == false ? language : "language"
       d.labelColor = theme.secondary
-      codeLabels.append((body, b.markers[0].shifted(by: offset)))
     }
     if preferences.codeLineNumbers {
       var n = 1
@@ -640,20 +639,15 @@ final class Styler {
     let size = TableLayout.size(table, theme: theme, width: contentWidth(ctx))
     hideLines(abs)
     applyCtxBarsOnly(abs, ctx)
-    let d = deco(lineStart(abs.location))
-    d.renderSize = size
-    d.inset = ctx.indent
-    // Table space sits before the first line, so the overlay grid aligns with the block top.
+    // Table space sits before the first (hidden) line; the overlay grid is placed there.
     spec(abs.location) { s in
       s.first = ctx.indent
       s.head = ctx.indent
-      s.before = size.height + 16 * theme.zoom
+      s.before = size.height + Self.tableGap * 2
     }
-    tableBlocks.append((abs, size, ctx.indent))
   }
 
-  /// Tables styled in the last pass, for the overlay host.
-  var tableBlocks: [(range: NSRange, size: CGSize, indent: CGFloat)] = []
+  static let tableGap: CGFloat = 8
 
   private func styleTOC(_ b: Block, offset: Int, ctx: Ctx, revealed: Bool) {
     let abs = trimTrailingNewline(b.range.shifted(by: offset))
@@ -667,11 +661,7 @@ final class Styler {
     placeRender(
       RenderResult(image: image.image, size: image.size), after: abs, ctx: ctx, gap: 6,
       centered: false)
-    tocBlocks.append((abs, image.rows))
   }
-
-  /// `[toc]` blocks styled in the last pass: rows in render coordinates → heading slug.
-  var tocBlocks: [(range: NSRange, rows: [(CGRect, String)])] = []
 
   private func styleMedia(_ media: MediaEmbed, block: NSRange, ctx: Ctx, revealed: Bool) {
     let abs = trimTrailingNewline(block)
@@ -680,22 +670,13 @@ final class Styler {
     } else {
       hideLines(abs)
     }
-    let w = min(contentWidth(ctx), media.width ?? 560)
-    let size = CGSize(width: w, height: media.kind == .audio ? 40 : media.height ?? w * 9 / 16)
+    let size = Self.mediaSize(media, width: contentWidth(ctx))
     placeRender(RenderResult(image: nil, size: size), after: abs, ctx: ctx, gap: 6)
-    mediaBlocks.append((abs, size, ctx.indent, media))
   }
 
-  var mediaBlocks: [(range: NSRange, size: CGSize, indent: CGFloat, media: MediaEmbed)] = []
-
-  /// Code blocks with a label in the last pass: (content range, opening fence line).
-  var codeLabels: [(content: NSRange, fence: NSRange)] = []
-
-  func resetOverlayRecords() {
-    codeLabels.removeAll()
-    tableBlocks.removeAll()
-    tocBlocks.removeAll()
-    mediaBlocks.removeAll()
+  static func mediaSize(_ media: MediaEmbed, width: CGFloat) -> CGSize {
+    let w = min(width, media.width ?? 560)
+    return CGSize(width: w, height: media.kind == .audio ? 40 : media.height ?? w * 9 / 16)
   }
 
   // MARK: Inlines

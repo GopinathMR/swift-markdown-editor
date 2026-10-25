@@ -194,3 +194,34 @@ final class Harness {
   #expect(!h.c.isProse(NSRange(location: 6, length: 3)))
   #expect(h.c.isProse(NSRange(location: 15, length: 3)))
 }
+
+@Test func tableModelRoundTripsAndEscapes() {
+  let src = "| a | b |\n|:--|--:|\n| 1 | x\\|y |"
+  var t = TableModel(source: src)!
+  #expect(t.header == ["a", "b"])
+  #expect(t.alignments == [.left, .right])
+  #expect(t.rows == [["1", "x|y"]])
+  t[0, 0] = "p|q"
+  t.insertRow(at: 1)
+  t.insertColumn(at: 2)
+  t.moveColumn(from: 2, to: 0)
+  let out = t.serialized()
+  #expect(out.contains("p\\|q"))
+  #expect(TableModel(source: out) == t)
+  t.resize(rows: 1, columns: 2)
+  #expect(t.rows.count == 1 && t.columnCount == 2)
+}
+
+@MainActor @Test func tableGridEditsRewriteOnlyTheTable() {
+  let src = "Intro.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nOutro.\n"
+  let h = Harness(src)
+  h.c.layoutOverlays()
+  #expect(h.c.overlays.tables.count == 1)
+  let grid = h.c.overlays.tables[0].grid
+  grid.apply { $0[0, 1] = "two" }
+  #expect(
+    h.c.storage.string.hasPrefix(
+      "Intro.\n\n| a   | b   |\n| --- | --- |\n| 1   | two |\n\nOutro.\n"))
+  h.tv.undoManager?.undo()
+  #expect(h.c.storage.string == src)
+}
