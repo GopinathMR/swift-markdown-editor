@@ -171,18 +171,88 @@ struct FindBar: View {
   }
 }
 
-/// Hosts the find bar above the scroll view.
-final class EditorContainerView: NSView {
+/// Where the outline panel sits.
+public enum OutlinePosition: Sendable, Equatable { case right, left, hidden }
+
+/// The editor's top view: a split view holding the editor pane (find bar over the scroll
+/// view) and, unless hidden, the outline pane.
+final class EditorContainerView: NSView, NSSplitViewDelegate {
   let scrollView: NSScrollView
-  private(set) var bar: NSView?
+  private let pane = EditorPane()
+  private let split = NSSplitView()
+  private var outline: NSView?
+  private(set) var position: OutlinePosition = .hidden
+  private var outlineWidth: CGFloat = 220
+  private var placeDivider = false
+
+  var bar: NSView? { pane.bar }
 
   init(scrollView: NSScrollView) {
     self.scrollView = scrollView
     super.init(frame: .zero)
-    addSubview(scrollView)
+    pane.scrollView = scrollView
+    pane.addSubview(scrollView)
+    split.isVertical = true
+    split.dividerStyle = .thin
+    split.delegate = self
+    split.addArrangedSubview(pane)
+    addSubview(split)
   }
 
   required init?(coder: NSCoder) { fatalError() }
+
+  func setBar(_ view: NSView?) { pane.setBar(view) }
+
+  /// Move, show or hide the outline pane. The editor pane (and its text view) stays put.
+  func setOutline(_ view: NSView?, position: OutlinePosition) {
+    if let outline, outline.superview != nil { outlineWidth = max(120, outline.frame.width) }
+    outline?.removeFromSuperview()
+    self.position = position
+    outline = view
+    guard let view, position != .hidden else {
+      needsLayout = true
+      return
+    }
+    if position == .left {
+      split.insertArrangedSubview(view, at: 0)
+    } else {
+      split.addArrangedSubview(view)
+    }
+    // The outline keeps its width when the window resizes; the editor takes the rest.
+    split.setHoldingPriority(.init(260), forSubviewAt: split.arrangedSubviews.firstIndex(of: view)!)
+    split.setHoldingPriority(.init(240), forSubviewAt: split.arrangedSubviews.firstIndex(of: pane)!)
+    placeDivider = true
+    needsLayout = true
+  }
+
+  override func layout() {
+    super.layout()
+    split.frame = bounds
+    if placeDivider, bounds.width > 0 {
+      placeDivider = false
+      split.adjustSubviews()
+      split.setPosition(
+        position == .left ? outlineWidth : bounds.width - outlineWidth, ofDividerAt: 0)
+    }
+  }
+
+  func splitView(_ splitView: NSSplitView, constrainMinCoordinate p: CGFloat, ofSubviewAt i: Int)
+    -> CGFloat
+  {
+    position == .left ? 120 : max(p, 240)
+  }
+
+  func splitView(_ splitView: NSSplitView, constrainMaxCoordinate p: CGFloat, ofSubviewAt i: Int)
+    -> CGFloat
+  {
+    position == .left ? min(p, splitView.bounds.width - 240) : splitView.bounds.width - 120
+  }
+}
+
+/// Find bar over the scroll view.
+final class EditorPane: NSView {
+  var scrollView: NSScrollView!
+  private(set) var bar: NSView?
 
   func setBar(_ view: NSView?) {
     bar?.removeFromSuperview()

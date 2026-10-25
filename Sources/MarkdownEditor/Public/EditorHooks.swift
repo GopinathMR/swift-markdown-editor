@@ -11,9 +11,19 @@ public struct EditorHooks {
   /// Upload local images; returns their remote URLs in order. `nil` hides Upload commands.
   public var uploadImages: (@MainActor ([URL]) async throws -> [URL])?
   public var onError: @MainActor (EditorError) -> Void = { _ in }
+  /// File mode: decide what happens when another app changes the file while the buffer has
+  /// unsaved edits. `nil` shows the built-in Reload / Keep My Changes sheet.
+  public var resolveExternalChange: (@MainActor (ExternalChange) async -> ExternalChangeChoice)?
 
   public init() {}
 }
+
+public struct ExternalChange: Sendable, Equatable {
+  public let url: URL
+  public let diskText: String
+}
+
+public enum ExternalChangeChoice: Sendable, Equatable { case reload, keepMine }
 
 public enum LinkTarget: Sendable, Equatable {
   case web(URL)
@@ -30,4 +40,7 @@ public enum EditorError: Error, Sendable, Equatable {
   case imageRefused(String)
   case imageOperation(String)
   case themeFile(String)
+  case fileUnreadable(URL)
+  case fileDeleted(URL)
+  case fileWrite(String)
 }

@@ -14,6 +14,7 @@ public enum EditorCommand: Hashable, Sendable {
   case copyAsMarkdown, copyAsHTML, pasteAsPlainText
   case toggleSourceMode, toggleFocusMode, toggleTypewriterMode
   case zoomIn, zoomOut, zoomReset, find, findAndReplace
+  case save
 
   public static let all: [EditorCommand] =
     (1...6).map(EditorCommand.heading) + [
@@ -23,7 +24,7 @@ public enum EditorCommand: Hashable, Sendable {
       .inlineMath, .link, .image, .clearFormat, .selectLine, .selectStyleScope, .selectWord,
       .deleteWord, .deleteTableRow, .jumpTop, .jumpBottom, .jumpSelection, .copyAsMarkdown,
       .copyAsHTML, .pasteAsPlainText, .toggleSourceMode, .toggleFocusMode, .toggleTypewriterMode,
-      .zoomIn, .zoomOut, .zoomReset, .find, .findAndReplace,
+      .zoomIn, .zoomOut, .zoomReset, .find, .findAndReplace, .save,
     ]
 
   public var title: String {
@@ -74,6 +75,7 @@ public enum EditorCommand: Hashable, Sendable {
     case .zoomReset: return "Actual Size"
     case .find: return "Find…"
     case .findAndReplace: return "Find and Replace…"
+    case .save: return "Save"
     }
   }
 
@@ -130,6 +132,7 @@ public enum EditorCommand: Hashable, Sendable {
     case .zoomReset: return k("0", [.command, .shift])
     case .find: return k("f")
     case .findAndReplace: return k("h", [.command, .option])
+    case .save: return k("s")
     }
   }
 }
@@ -153,6 +156,7 @@ public struct MarkdownEditorCommands: Commands {
   }
 
   public var body: some Commands {
+    CommandGroup(replacing: .saveItem) { item(.save) }
     CommandGroup(after: .pasteboard) {
       item(.copyAsMarkdown)
       item(.copyAsHTML)

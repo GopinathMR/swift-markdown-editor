@@ -16,18 +16,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct DemoApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
   @State private var document = DemoDocument.fromLaunchArguments()
+  @State private var controller = MarkdownEditorController()
 
   var body: some Scene {
     WindowGroup("Markdown Editor") {
-      ContentView(document: document)
+      ContentView(document: document, controller: controller)
         .frame(minWidth: 700, minHeight: 500)
     }
     .defaultSize(width: 1100, height: 800)
     .commands {
       MarkdownEditorCommands()
-      CommandGroup(replacing: .saveItem) {
-        Button("Save") { document.save() }.keyboardShortcut("s")
-      }
+      DemoViewCommands()
       CommandGroup(after: .newItem) {
         Button("Open…") { document.openPanel() }.keyboardShortcut("o")
       }

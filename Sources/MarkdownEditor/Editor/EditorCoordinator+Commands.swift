@@ -4,6 +4,7 @@ extension EditorCoordinator {
   func canPerform(_ c: EditorCommand) -> Bool {
     switch c {
     case .deleteTableRow: return blockAtCaret()?.kind == .table
+    case .save: return file != nil
     case .toggleSourceMode, .toggleFocusMode, .toggleTypewriterMode, .zoomIn, .zoomOut, .zoomReset,
       .find, .findAndReplace,
       .jumpTop, .jumpBottom, .jumpSelection, .copyAsMarkdown, .copyAsHTML, .pasteAsPlainText,
@@ -78,6 +79,10 @@ extension EditorCoordinator {
     case .zoomReset: controller?.zoom = 1
     case .find: showFind(replace: false)
     case .findAndReplace: showFind(replace: true)
+    case .save:
+      do { try save() } catch let e as EditorError { hooks.onError(e) } catch {
+        hooks.onError(.fileWrite(error.localizedDescription))
+      }
     }
   }
 

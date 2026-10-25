@@ -2,6 +2,15 @@ import Foundation
 import MarkdownEditor
 
 enum DemoPreferences {
+  /// `-outline left|right|hidden`.
+  static func launchOutline() -> OutlinePosition {
+    switch UserDefaults.standard.string(forKey: "outline") {
+    case "left": return .left
+    case "hidden", "NO", "no": return .hidden
+    default: return .right
+    }
+  }
+
   /// `-theme <file.toml>` loads a theme file; errors print and fall back to the default.
   static func launchTheme() -> EditorTheme {
     guard let path = UserDefaults.standard.string(forKey: "theme") else { return .default }

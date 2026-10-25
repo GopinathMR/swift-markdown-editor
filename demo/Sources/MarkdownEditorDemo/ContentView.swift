@@ -3,28 +3,21 @@ import SwiftUI
 
 struct ContentView: View {
   @Bindable var document: DemoDocument
-  @State private var controller = MarkdownEditorController()
+  @Bindable var controller: MarkdownEditorController
   @State private var preferences = DemoPreferences.launchPreferences()
   @State private var theme = DemoPreferences.launchTheme()
-  @State private var showOutline =
-    UserDefaults.standard.object(forKey: "outline") == nil
-    || UserDefaults.standard.bool(forKey: "outline")
 
   var body: some View {
-    NavigationSplitView(columnVisibility: .constant(showOutline ? .all : .detailOnly)) {
-      OutlineSidebar(controller: controller)
-        .navigationSplitViewColumnWidth(min: 180, ideal: 230)
-    } detail: {
-      MarkdownEditor(
-        text: $document.text, documentURL: document.url, controller: controller,
-        preferences: preferences, theme: theme
-      )
-      .safeAreaInset(edge: .bottom, spacing: 0) { StatusBar(controller: controller) }
-    }
+    MarkdownEditor(
+      fileURL: document.url, controller: controller, preferences: preferences, theme: theme,
+      outlinePosition: DemoPreferences.launchOutline()
+    )
+    .safeAreaInset(edge: .bottom, spacing: 0) { StatusBar(controller: controller) }
     .focusedSceneValue(\.markdownEditorController, controller)
     .preferredColorScheme(UserDefaults.standard.bool(forKey: "light") ? .light : nil)
     .navigationTitle(
-      (document.url?.lastPathComponent ?? "Untitled") + (document.isDirty ? " — Edited" : "")
+      (controller.fileURL ?? document.url).lastPathComponent
+        + (controller.isDirty ? " — Edited" : "")
     )
     .toolbar {
       ToolbarItemGroup {
@@ -50,6 +43,9 @@ struct ContentView: View {
     .onAppear {
       if UserDefaults.standard.bool(forKey: "source") { controller.mode = .source }
       if UserDefaults.standard.bool(forKey: "focus") { controller.isFocusMode = true }
+      if UserDefaults.standard.object(forKey: "watch") != nil {
+        controller.watchFile = UserDefaults.standard.bool(forKey: "watch")
+      }
       if let slug = UserDefaults.standard.string(forKey: "heading") {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { controller.reveal(slug) }
       }
@@ -68,11 +64,26 @@ struct ContentView: View {
   }
 }
 
-struct OutlineSidebar: View {
-  let controller: MarkdownEditorController
+/// View ▸ Outline position and Watch File, for the focused editor.
+struct DemoViewCommands: Commands {
+  @FocusedValue(\.markdownEditorController) private var controller
 
-  var body: some View {
-    MarkdownOutline(controller: controller)
+  var body: some Commands {
+    CommandGroup(after: .sidebar) {
+      Picker(
+        "Outline",
+        selection: Binding(
+          get: { controller?.outlinePosition ?? .right }, set: { controller?.outlinePosition = $0 })
+      ) {
+        Text("Outline on Right").tag(OutlinePosition.right)
+        Text("Outline on Left").tag(OutlinePosition.left)
+        Text("Hide Outline").tag(OutlinePosition.hidden)
+      }
+      .pickerStyle(.inline)
+      Toggle(
+        "Watch File for Changes",
+        isOn: Binding(get: { controller?.watchFile ?? true }, set: { controller?.watchFile = $0 }))
+    }
   }
 }
 

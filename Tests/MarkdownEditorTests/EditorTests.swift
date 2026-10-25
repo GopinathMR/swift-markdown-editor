@@ -430,3 +430,15 @@ final class Harness {
   let next = rotor.itemSearchDelegate!.rotor(rotor, resultFor: params)
   #expect(next?.customLabel == "Heading level 1, Intro")
 }
+
+@MainActor @Test func undoReparsesAndPublishes() async {
+  let h = Harness("Hello\n")
+  h.caret(5)
+  h.type("!")
+  #expect(h.published == "Hello!\n")
+  h.tv.undoManager?.undo()
+  // Undo changes the text without textDidChange; the flush lands on the next turn.
+  try? await Task.sleep(for: .milliseconds(100))
+  #expect(h.published == "Hello\n")
+  #expect(h.c.model.entries.first?.length == 6)
+}

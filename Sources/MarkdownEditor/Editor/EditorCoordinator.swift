@@ -20,6 +20,17 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
   let container: EditorContainerView
   let find = FindModel()
   let overlays = OverlayState()
+  /// File mode (`MarkdownEditor(fileURL:)`): the open file and conflict state.
+  var file: DocumentFile?
+  var conflictOpen = false
+  var pendingDisk: String?
+  /// The URL the host asked for (moves change `file.url`, not this).
+  var openedURL: URL?
+  /// Used when the host passes no controller (the outline panel needs one).
+  lazy var ownController = MarkdownEditorController()
+  var outlineHost: NSView?
+  /// Init values last pushed to the controller (`watchFile`, `outlinePosition`).
+  var applied: (watch: Bool, outline: OutlinePosition) = (true, .right)
   /// Rotor delegates are held weakly by AppKit; keep them alive here.
   var rotorDelegates: [StructureRotor] = []
 
@@ -29,6 +40,7 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
   var mode: EditorMode = .rendered
 
   private var pendingEdits: [(range: NSRange, delta: Int)] = []
+  private var flushScheduled = false
   private var lastSelection = NSRange(location: 0, length: 0)
   private var restyleWorkItem: DispatchWorkItem?
   /// Set while we change the storage ourselves (external text, restyle) to skip delegate work.
@@ -187,10 +199,25 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
     guard editedMask.contains(.editedCharacters) else { return }
     MainActor.assumeIsolated {
       pendingEdits.append((editedRange, delta))
+      // Undo/redo can change the text without `textDidChange`; flush on the next turn
+      // if nothing else did.
+      if !flushScheduled {
+        flushScheduled = true
+        DispatchQueue.main.async { [weak self] in
+          MainActor.assumeIsolated {
+            self?.flushScheduled = false
+            self?.flushEdits()
+          }
+        }
+      }
     }
   }
 
-  func textDidChange(_ notification: Notification) {
+  func textDidChange(_ notification: Notification) { flushEdits() }
+
+  /// Parse and publish pending user edits (programmatic loads process their own).
+  func flushEdits() {
+    guard !pendingEdits.isEmpty, !isProgrammaticEdit else { return }
     processPendingEdits()
     onTextChange?(storage.string)
   }
@@ -231,6 +258,7 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
     restyle(indices)
     controller?.documentDidChange(model, text: storage.string)
     if container.bar != nil { find.refresh() }
+    updateDirty()
     if controller?.isFocusMode == true { applyFocus() }
     if controller?.isTypewriterMode == true { centerCaret() }
   }

@@ -25,6 +25,18 @@ public final class MarkdownEditorController {
   /// UTF-16 offsets into the markdown source.
   public private(set) var selectedRange = NSRange(location: 0, length: 0)
   public var isFindVisible = false
+  /// Where the outline panel sits; `.hidden` removes it.
+  public var outlinePosition: OutlinePosition = .right {
+    didSet { if outlinePosition != oldValue { coordinator?.setOutline(outlinePosition) } }
+  }
+  /// File mode: follow other apps' changes to the file. On by default.
+  public var watchFile = true {
+    didSet { if watchFile != oldValue { coordinator?.setWatching(watchFile) } }
+  }
+  /// File mode: the open file (follows moves and renames).
+  public internal(set) var fileURL: URL?
+  /// File mode: the buffer differs from the file on disk.
+  public internal(set) var isDirty = false
   /// Mirrors the theme's heading auto-numbering (outline shows numbers when on).
   public internal(set) var showsHeadingNumbers = false
 
@@ -84,6 +96,12 @@ public final class MarkdownEditorController {
   public func canPerform(_ command: EditorCommand) -> Bool {
     coordinator?.canPerform(command) ?? false
   }
+
+  /// File mode: write the buffer to `fileURL` (atomic, coordinated).
+  public func save() throws { try coordinator?.save() }
+
+  /// File mode: discard unsaved edits and show the file as it is on disk.
+  public func reload() throws { try coordinator?.reloadFromDisk() }
 
   /// Move the caret/selection (source offsets) and scroll it into view.
   public func setSelection(_ range: NSRange) {
