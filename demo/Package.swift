@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
   name: "MarkdownEditorDemo",
   platforms: [.macOS(.v14)],
-  dependencies: [.package(path: "..")],
+  dependencies: [.package(name: "swift-markdown-editor", path: "..")],
   targets: [
     .executableTarget(
       name: "MarkdownEditorDemo",

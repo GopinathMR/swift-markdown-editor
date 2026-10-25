@@ -12,6 +12,25 @@ typing, and you get back the same bytes.
 The demo's built-in feature tour, captured in the running macOS app. The caret is in the Writing
 heading, revealing its markdown markers while the surrounding content stays rendered.
 
+## Installation
+
+Requires macOS 14 or later and Swift 6.0 or later.
+
+In Xcode, choose **File → Add Package Dependencies**, enter
+`https://github.com/GopinathMR/swift-markdown-editor.git`, and select version **0.1.0**
+or later. Add the **MarkdownEditor** product to your app target.
+
+For a Swift package, add the dependency to `Package.swift`:
+
+```swift
+dependencies: [
+  .package(url: "https://github.com/GopinathMR/swift-markdown-editor.git", from: "0.1.0")
+]
+```
+
+Then add `.product(name: "MarkdownEditor", package: "swift-markdown-editor")` to
+your target's dependencies.
+
 ## Embedding
 
 ```swift
