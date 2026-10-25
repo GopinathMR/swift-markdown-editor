@@ -48,6 +48,11 @@ struct ContentView: View {
     .onAppear {
       if UserDefaults.standard.bool(forKey: "source") { controller.mode = .source }
       if UserDefaults.standard.bool(forKey: "focus") { controller.isFocusMode = true }
+      if let q = UserDefaults.standard.string(forKey: "find") {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+          controller.showFind(replace: true, query: q)
+        }
+      }
       if UserDefaults.standard.object(forKey: "caret") != nil {
         let caret = UserDefaults.standard.integer(forKey: "caret")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

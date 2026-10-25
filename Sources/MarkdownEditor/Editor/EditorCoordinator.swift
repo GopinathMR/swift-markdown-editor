@@ -17,6 +17,8 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
   }
   weak var controller: MarkdownEditorController?
   var onTextChange: ((String) -> Void)?
+  let container: EditorContainerView
+  let find = FindModel()
 
   private(set) var model = DocumentModel()
   var preferences: EditorPreferences
@@ -52,6 +54,7 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
     textView = EditorTextView(
       frame: NSRect(x: 0, y: 0, width: 800, height: 600), textContainer: container)
     scrollView = NSScrollView()
+    self.container = EditorContainerView(scrollView: scrollView)
 
     let resolved = ResolvedTheme(style: theme.light, zoom: 1, isDark: false)
     styler = Styler(theme: resolved, preferences: preferences, renders: renders)
@@ -193,6 +196,7 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
     styler.selection = lastSelection
     restyle(indices)
     controller?.documentDidChange(model, text: storage.string)
+    if container.bar != nil { find.refresh() }
   }
 
   func textViewDidChangeSelection(_ notification: Notification) {

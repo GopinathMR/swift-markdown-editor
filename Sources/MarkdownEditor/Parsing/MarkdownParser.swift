@@ -410,8 +410,11 @@ final class MarkdownParser {
   }
 
   private func lineContaining(_ rel: NSRange, base: Int, text: NSString) -> NSRange {
-    let line = text.lineRange(for: NSRange(location: base + rel.location, length: 0))
-    return trimNewline(line.shifted(by: -base), base: base, text: text)
+    var line = text.lineRange(for: NSRange(location: base + rel.location, length: 0)).shifted(
+      by: -base)
+    // Never reach before the block: cached blocks must not depend on text outside them.
+    if line.location < 0 { line = NSRange(location: 0, length: line.end) }
+    return trimNewline(line, base: base, text: text)
   }
 
   private func lineIncludingPrecedingNewline(_ rel: NSRange, base: Int, text: NSString) -> NSRange {

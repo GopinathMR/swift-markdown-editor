@@ -299,7 +299,18 @@ extension EditorCoordinator {
     return false
   }
 
-  func handleKeyDown(_ event: NSEvent) -> Bool { false }
+  func handleKeyDown(_ event: NSEvent) -> Bool {
+    let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    if event.charactersIgnoringModifiers == "g", mods.contains(.command), container.bar != nil {
+      find.next(!mods.contains(.shift))
+      return true
+    }
+    if event.keyCode == 53, container.bar != nil {
+      hideFind()
+      return true
+    }
+    return false
+  }
 
   /// Smart quotes/dashes and text replacement only in prose, never in code or math.
   func updateSubstitutionContext() {

@@ -33,7 +33,7 @@ public struct MarkdownEditor: NSViewRepresentable {
         preferences: preferences, theme: theme, hooks: hooks, documentURL: documentURL))
   }
 
-  public func makeNSView(context: Context) -> NSScrollView {
+  public func makeNSView(context: Context) -> NSView {
     let c = context.coordinator.coordinator
     c.controller = controller
     controller?.coordinator = c
@@ -42,10 +42,10 @@ public struct MarkdownEditor: NSViewRepresentable {
       if binding.wrappedValue != s { binding.wrappedValue = s }
     }
     controller?.documentDidChange(c.model, text: text)
-    return c.scrollView
+    return c.container
   }
 
-  public func updateNSView(_ view: NSScrollView, context: Context) {
+  public func updateNSView(_ view: NSView, context: Context) {
     let c = context.coordinator.coordinator
     c.hooks = hooks
     if c.documentURL != documentURL { c.documentURL = documentURL }

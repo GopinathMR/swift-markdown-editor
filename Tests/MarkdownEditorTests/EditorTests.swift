@@ -162,3 +162,35 @@ final class Harness {
   h.c.setLanguage("typescript", fence: NSRange(location: 0, length: 5))
   #expect(h.c.storage.string == "```typescript\ncode\n```\n")
 }
+
+@MainActor @Test func findAndReplaceAllIsOneUndoStep() {
+  let h = Harness("cat **cat** `cat` dog cat\n")
+  h.c.showFind(replace: true)
+  h.c.find.query = "cat"
+  #expect(h.c.find.matches.count == 4)
+  h.c.find.replacement = "cow"
+  h.c.find.replaceAll()
+  #expect(h.c.storage.string == "cow **cow** `cow` dog cow\n")
+  h.tv.undoManager?.undo()
+  #expect(h.c.storage.string == "cat **cat** `cat` dog cat\n")
+}
+
+@MainActor @Test func findSkipsHiddenSyntaxAndSupportsRegex() {
+  let h = Harness("a **b** c\n\nx\n")
+  h.caret(11)
+  h.c.showFind(replace: false)
+  h.c.find.query = "**"
+  #expect(h.c.find.matches.isEmpty)  // only hidden markers
+  h.c.find.regex = true
+  h.c.find.query = "(a) (\\*\\*b)"
+  h.c.find.replacement = "$2 $1"
+  h.c.find.replaceAll()
+  #expect(h.c.storage.string.hasPrefix("**b a**"))
+}
+
+@MainActor @Test func spellCheckIgnoresCode() {
+  let h = Harness("Some `cde` and txt\n")
+  h.caret(18)
+  #expect(!h.c.isProse(NSRange(location: 6, length: 3)))
+  #expect(h.c.isProse(NSRange(location: 15, length: 3)))
+}

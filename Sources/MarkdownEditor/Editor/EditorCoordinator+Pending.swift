@@ -12,7 +12,6 @@ extension EditorCoordinator {
   func viewportDidScroll() {}
   func overlaysNeedUpdate() {}
   func selectionDidChangeHooks() { updateSubstitutionContext() }
-  func showFind(replace: Bool) {}
   func focusModeChanged() {}
   func typewriterModeChanged() {}
 }

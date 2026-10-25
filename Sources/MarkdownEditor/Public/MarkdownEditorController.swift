@@ -91,7 +91,11 @@ public final class MarkdownEditorController {
   /// Scroll to a heading and put the caret there.
   public func reveal(_ heading: OutlineItem.ID) { coordinator?.reveal(slug: heading) }
 
-  public func showFind(replace: Bool) { coordinator?.showFind(replace: replace) }
+  /// Open the find bar (with replace), optionally pre-filled.
+  public func showFind(replace: Bool, query: String? = nil) {
+    coordinator?.showFind(replace: replace)
+    if let query { coordinator?.find.query = query }
+  }
 
   public var availableExportFormats: [ExportFormat] { Exporter.availableFormats }
 

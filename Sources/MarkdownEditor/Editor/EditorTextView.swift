@@ -49,6 +49,11 @@ final class EditorTextView: NSTextView {
       return
     }
     super.insertText(string, replacementRange: replacementRange)
+    if let s = string as? String, s.count == 1,
+      s.first?.isLetter == true || s.first?.isNumber == true
+    {
+      coordinator?.maybeCompleteEmoji()
+    }
   }
 
   override func insertNewline(_ sender: Any?) {
