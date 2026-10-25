@@ -181,3 +181,22 @@ extension EditorCoordinator {
     lm.textViewportLayoutController.layoutViewport()
   }
 }
+
+extension EditorCoordinator {
+  /// Scroll `location` into view a third of the way down, using exact layout.
+  /// (`scrollRangeToVisible` goes by TextKit 2's height estimates and can land far off.)
+  func reveal(location: Int) {
+    guard let lm = textView.textLayoutManager, let cs = lm.textContentManager,
+      let loc = cs.location(cs.documentRange.location, offsetBy: min(location, text.length))
+    else { return }
+    lm.ensureLayout(
+      for: NSTextRange(location: cs.documentRange.location, end: loc) ?? cs.documentRange)
+    guard let f = lm.textLayoutFragment(for: loc) else { return }
+    let visible = scrollView.contentView.bounds
+    let y = f.layoutFragmentFrame.minY + textView.textContainerOrigin.y
+    guard y < visible.minY + 20 || y > visible.maxY - 40 else { return }
+    scrollView.contentView.scroll(to: NSPoint(x: 0, y: max(0, y - visible.height / 3)))
+    scrollView.reflectScrolledClipView(scrollView.contentView)
+    lm.textViewportLayoutController.layoutViewport()
+  }
+}

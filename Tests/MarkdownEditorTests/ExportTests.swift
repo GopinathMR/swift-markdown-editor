@@ -97,3 +97,11 @@ let exportSample = """
   try await Exporter(coordinator: h.c).export(.pandoc(.docx), to: url, options: .init())
   #expect(try Data(contentsOf: url).count > 1000)
 }
+
+@MainActor @Test func inlineHTMLSurvivesExport() {
+  let s = "a <u>b</u> c <span style=\"color:red\">d</span>\n" as NSString
+  let m = MarkdownParser(preferences: .init()).parse(s).model
+  #expect(
+    HTMLRenderer(text: s, model: m, preferences: .init()).body()
+      == "<p>a <u>b</u> c <span style=\"color:red\">d</span></p>\n")
+}

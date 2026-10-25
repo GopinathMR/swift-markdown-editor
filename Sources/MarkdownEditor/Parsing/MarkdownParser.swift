@@ -780,8 +780,9 @@ final class BlockBuilder: @unchecked Sendable {
 
   /// Pair `<u>…</u>`-style tags (already collected as hidden html inlines) into styled spans.
   private func pairHTML(_ list: inout [Inline]) -> [Inline] {
-    var stack: [(name: String, inline: Inline, attrs: String)] = []
+    var stack: [(name: String, inline: Inline, attrs: String, index: Int)] = []
     var paired: [Inline] = []
+    var consumed: Set<Int> = []
     for (idx, item) in list.enumerated() {
       guard case .html = item.kind, let t = tagTexts[item.range.location] else { continue }
       guard let m = t.firstMatch(of: #/^<(/?)([A-Za-z][A-Za-z0-9]*)([^>]*?)(/?)>$/#) else {
@@ -799,7 +800,7 @@ final class BlockBuilder: @unchecked Sendable {
       }
       if ["br", "hr", "input", "source", "wbr"].contains(name) || !m.4.isEmpty { continue }
       if !closing {
-        stack.append((name, item, attrs))
+        stack.append((name, item, attrs, idx))
       } else if let open = stack.lastIndex(where: { $0.name == name }) {
         let o = stack[open]
         stack.removeSubrange(open...)
@@ -815,6 +816,9 @@ final class BlockBuilder: @unchecked Sendable {
         case "span", "font": HTMLStyle.parseCSS(o.attrs, into: &style)
         default: break
         }
+        // The paired span carries both tags as markers; the loose tag inlines go.
+        consumed.insert(o.index)
+        consumed.insert(idx)
         paired.append(
           Inline(
             kind: .html(style),
@@ -824,6 +828,9 @@ final class BlockBuilder: @unchecked Sendable {
       }
     }
     tagTexts.removeAll()
+    if !consumed.isEmpty {
+      list = list.enumerated().filter { !consumed.contains($0.offset) }.map(\.element)
+    }
     return paired
   }
 

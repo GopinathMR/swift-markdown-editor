@@ -91,7 +91,7 @@ public final class MarkdownEditorController {
     let loc = min(range.location, c.storage.length)
     c.textView.setSelectedRange(
       NSRange(location: loc, length: min(range.length, c.storage.length - loc)))
-    c.textView.scrollRangeToVisible(c.textView.selectedRange())
+    c.reveal(location: loc)
   }
 
   /// Scroll to a heading and put the caret there.

@@ -60,7 +60,7 @@ struct ContentView: View {
       }
       if UserDefaults.standard.object(forKey: "caret") != nil {
         let caret = UserDefaults.standard.integer(forKey: "caret")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {  // after renders settle
           controller.setSelection(NSRange(location: caret, length: 0))
         }
       }

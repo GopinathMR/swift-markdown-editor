@@ -66,7 +66,7 @@ extension EditorCoordinator {
     case .deleteTableRow: deleteTableRowAtCaret()
     case .jumpTop: jump(to: 0)
     case .jumpBottom: jump(to: text.length)
-    case .jumpSelection: textView.scrollRangeToVisible(sel)
+    case .jumpSelection: reveal(location: sel.location)
     case .copyAsMarkdown: copyAsMarkdown()
     case .copyAsHTML: copyAsHTML()
     case .pasteAsPlainText: _ = handlePaste(plain: true)

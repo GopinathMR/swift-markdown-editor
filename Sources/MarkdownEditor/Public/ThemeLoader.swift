@@ -161,6 +161,7 @@ extension ThemeStyle {
       """ : ""
     return """
       :root { color-scheme: light dark; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       body { font-family: \(body)-apple-system, "Helvetica Neue", Helvetica, sans-serif; font-size: \(Int(baseSize))px;
         line-height: \(String(format: "%.2f", 1.35 + lineSpacing / baseSize)); color: \(c.text); background: \(c.background);
         max-width: \(Int(maxWidth ?? 900))px; margin: 0 auto; padding: 30px; }
