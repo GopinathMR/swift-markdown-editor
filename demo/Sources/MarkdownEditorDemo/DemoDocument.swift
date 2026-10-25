@@ -23,7 +23,7 @@ final class DemoDocument {
       let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
       return DemoDocument(text: text, url: url)
     }
-    return DemoDocument(text: DemoSample.text, url: nil)
+    return DemoDocument(text: DemoSample.text, url: DemoSample.install())
   }
 
   func save() {

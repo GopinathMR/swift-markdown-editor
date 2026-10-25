@@ -225,3 +225,61 @@ final class Harness {
   h.tv.undoManager?.undo()
   #expect(h.c.storage.string == src)
 }
+
+@Test func imageRulesResolvePathsLikeTypora() {
+  var p = EditorPreferences()
+  p.imageInsert = .copy(toFolder: "./${filename}.assets")
+  let doc = URL(fileURLWithPath: "/tmp/notes/My Doc.md")
+  let rules = ImageRules(preferences: p, documentURL: doc, frontMatterTarget: nil)
+  #expect(rules.target == .copy(URL(fileURLWithPath: "/tmp/notes/My Doc.assets")))
+  #expect(
+    rules.markdownPath(URL(fileURLWithPath: "/tmp/notes/My Doc.assets/a b.png"))
+      == "My%20Doc.assets/a%20b.png")
+  p.ensureDotSlash = true
+  p.escapeImageURL = false
+  let r2 = ImageRules(preferences: p, documentURL: doc, frontMatterTarget: "upload")
+  #expect(r2.target == .upload)
+  #expect(r2.markdownPath(URL(fileURLWithPath: "/tmp/img/x.png")) == "../img/x.png")
+  #expect(r2.markdownPath(URL(fileURLWithPath: "/tmp/notes/x.png")) == "./x.png")
+}
+
+@Test func imageTagSizing() {
+  let t = ImageTag.parse(#"<img src="a.png" alt="A" style="zoom:50%" />"#)!
+  #expect(t.src == "a.png" && t.alt == "A" && t.size == "zoom:50%")
+  #expect(
+    ImageTag.apply(t.size, natural: CGSize(width: 400, height: 200), width: 1000)
+      == CGSize(width: 200, height: 100))
+  #expect(
+    ImageTag.apply("50%", natural: CGSize(width: 400, height: 200), width: 600)
+      == CGSize(width: 300, height: 150))
+  #expect(
+    MediaEmbed.parse(#"<video src="v.mp4" width="320"></video>"#)
+      == MediaEmbed(kind: .video, source: "v.mp4", width: 320, height: nil))
+  #expect(
+    MediaEmbed.parse(#"<iframe src="https://x.y/e" width=560 height=315></iframe>"#)?.kind
+      == .iframe)
+}
+
+@MainActor @Test func blockImageRendersFromFileAndZoomRewrites() async throws {
+  let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+  try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+  let img = NSImage(size: NSSize(width: 40, height: 20), flipped: false) { r in
+    NSColor.red.setFill()
+    r.fill()
+    return true
+  }
+  let png = NSBitmapImageRep(data: img.tiffRepresentation!)!.representation(
+    using: .png, properties: [:])!
+  try png.write(to: dir.appendingPathComponent("pic.png"))
+  let h = Harness("Text\n\n![Pic](pic.png)\n\nEnd\n")
+  h.c.documentURL = dir.appendingPathComponent("doc.md")
+  h.c.restyleAll()
+  _ = await h.c.renders.resolve(.image(dir.appendingPathComponent("pic.png")))
+  h.c.restyleAll()
+  h.caret(0)
+  #expect(h.isHidden(7))  // `![Pic](pic.png)` hidden behind the drawn image
+  let found = h.c.image(at: 8)!
+  h.c.rewriteImage(found, size: .some("zoom:50%"))
+  #expect(
+    h.c.storage.string == "Text\n\n<img src=\"pic.png\" alt=\"Pic\" style=\"zoom:50%\" />\n\nEnd\n")
+}

@@ -619,7 +619,7 @@ final class MarkdownParser {
   private func pairHTML(_ list: inout [Inline]) -> [Inline] {
     var stack: [(name: String, inline: Inline, attrs: String)] = []
     var paired: [Inline] = []
-    for item in list {
+    for (idx, item) in list.enumerated() {
       guard case .html = item.kind, let t = tagTexts[item.range.location] else { continue }
       guard let m = t.firstMatch(of: #/^<(/?)([A-Za-z][A-Za-z0-9]*)([^>]*?)(/?)>$/#) else {
         continue
@@ -627,7 +627,14 @@ final class MarkdownParser {
       let closing = !m.1.isEmpty
       let name = m.2.lowercased()
       let attrs = String(m.3)
-      if name == "br" || !m.4.isEmpty { continue }
+      // `<img>` behaves like `![]()`, with its width/zoom kept for sizing.
+      if name == "img", let img = ImageTag.parse(t) {
+        list[idx] = Inline(
+          kind: .image(source: img.src, alt: img.alt), range: item.range, markers: [item.range],
+          size: img.size)
+        continue
+      }
+      if ["br", "hr", "input", "source", "wbr"].contains(name) || !m.4.isEmpty { continue }
       if !closing {
         stack.append((name, item, attrs))
       } else if let open = stack.lastIndex(where: { $0.name == name }) {

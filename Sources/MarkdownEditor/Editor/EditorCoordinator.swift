@@ -86,7 +86,7 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
     storage.delegate = self
     layoutManager.delegate = self
     textView.onWidthChange = { [weak self] w in self?.containerWidthChanged(w) }
-    renders.onReady = { [weak self] in self?.restyleAll() }
+    renders.onReady = { [weak self] in self?.keepingViewport { self?.restyleAll() } }
 
     scrollView.documentView = textView
     scrollView.hasVerticalScroller = true

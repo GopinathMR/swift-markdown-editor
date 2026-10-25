@@ -295,6 +295,13 @@ final class Styler {
 
     case .html:
       let src = text.substring(with: abs)
+      if let tag = ImageTag.parse(src),
+        renderBlockImage(
+          Inline(kind: .image(source: tag.src, alt: tag.alt), range: b.range, size: tag.size),
+          block: abs, ctx: ctx)
+      {
+        return
+      }
       if let media = MediaEmbed.parse(src) {
         styleMedia(media, block: abs, ctx: ctx, revealed: blockRevealed)
       } else {
@@ -563,10 +570,11 @@ final class Styler {
   private func renderBlockImage(_ img: Inline, block: NSRange, ctx: Ctx) -> Bool {
     guard case .image(let src, _) = img.kind, let url = resolveURL(src) else { return false }
     let abs = trimTrailingNewline(block)
-    guard let result = renders.result(for: .image(url)) else { return false }
-    let isRevealed = revealed(abs)
+    guard var result = renders.result(for: .image(url)) else { return false }
+    result.size = ImageTag.apply(img.size, natural: result.size, width: contentWidth(ctx))
     applyCtx(abs, ctx)
-    if isRevealed {
+    // A missing image keeps its source visible, with the path under it.
+    if revealed(abs) || result.image == nil {
       add(abs, [.foregroundColor: theme.secondary])
     } else {
       hideLines(abs)
@@ -740,7 +748,8 @@ final class Styler {
       add(r, [.foregroundColor: theme.link, .mdLink: url])
       hideMarkers(i, offset: offset, reveal: rev)
     case .image(let src, let alt):
-      styleInlineImage(r, src: src, alt: alt, reveal: rev)
+      _ = alt
+      styleInlineImage(i, r, src: src, reveal: rev)
       return
     case .math(let latex):
       let req = RenderRequest.math(
@@ -845,16 +854,18 @@ final class Styler {
     add(NSRange(location: r.end - 1, length: 1), [.kern: d.width])
   }
 
-  private func styleInlineImage(_ r: NSRange, src: String, alt: String, reveal: Bool) {
+  private func styleInlineImage(_ i: Inline, _ r: NSRange, src: String, reveal: Bool) {
     guard let url = resolveURL(src), let res = renders.result(for: .image(url)),
       let img = res.image, !reveal
     else {
       add(r, [.foregroundColor: theme.secondary])
       return
     }
-    var size = res.size
+    var size = ImageTag.apply(i.size, natural: res.size, width: containerWidth - 20)
     let maxH = theme.body.pointSize * 6
-    if size.height > maxH { size = CGSize(width: size.width * maxH / size.height, height: maxH) }
+    if i.size == nil, size.height > maxH {
+      size = CGSize(width: size.width * maxH / size.height, height: maxH)
+    }
     substitute(r, with: InlineDecoration(.image(img, size: size, baseline: 0)))
     spec(r.location) { s in s.minHeight = max(s.minHeight, size.height + 4) }
   }

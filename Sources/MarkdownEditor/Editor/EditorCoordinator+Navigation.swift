@@ -135,6 +135,7 @@ extension EditorCoordinator {
       let y = f.layoutFragmentFrame.minY + textView.textContainerOrigin.y - 12
       scrollView.contentView.scroll(to: NSPoint(x: 0, y: max(0, y)))
       scrollView.reflectScrolledClipView(scrollView.contentView)
+      lm.textViewportLayoutController.layoutViewport()
     }
   }
 
@@ -154,5 +155,29 @@ extension EditorCoordinator {
       }
     }
     return nil
+  }
+}
+
+extension EditorCoordinator {
+  /// Run `change` (a restyle that resizes blocks, e.g. a finished render) without the
+  /// visible text jumping: the first visible line stays where it was on screen.
+  func keepingViewport(_ change: () -> Void) {
+    guard let lm = textView.textLayoutManager, let cs = lm.textContentManager,
+      let viewport = lm.textViewportLayoutController.viewportRange
+    else { return change() }
+    let visibleTop = scrollView.contentView.bounds.minY
+    let anchor = cs.offset(from: cs.documentRange.location, to: viewport.location)
+    let before = lm.textLayoutFragment(for: viewport.location)?.layoutFragmentFrame.minY
+    change()
+    guard let before, let loc = cs.location(cs.documentRange.location, offsetBy: anchor) else {
+      return
+    }
+    lm.ensureLayout(
+      for: NSTextRange(location: cs.documentRange.location, end: loc) ?? cs.documentRange)
+    guard let after = lm.textLayoutFragment(for: loc)?.layoutFragmentFrame.minY, after != before
+    else { return }
+    scrollView.contentView.scroll(to: NSPoint(x: 0, y: max(0, visibleTop + after - before)))
+    scrollView.reflectScrolledClipView(scrollView.contentView)
+    lm.textViewportLayoutController.layoutViewport()
   }
 }

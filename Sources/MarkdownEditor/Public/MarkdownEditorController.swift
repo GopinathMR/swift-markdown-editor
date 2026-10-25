@@ -97,6 +97,12 @@ public final class MarkdownEditorController {
     if let query { coordinator?.find.query = query }
   }
 
+  /// Copy (or download) every image into `folder` and repoint the references (one undo step).
+  public func copyAllImages(to folder: URL) async { await coordinator?.copyAllImages(to: folder) }
+
+  /// Upload every local image through `EditorHooks.uploadImages` and use the returned URLs.
+  public func uploadAllLocalImages() async { await coordinator?.uploadAllLocalImages() }
+
   public var availableExportFormats: [ExportFormat] { Exporter.availableFormats }
 
   public func export(_ format: ExportFormat, to url: URL, options: ExportOptions = .init())

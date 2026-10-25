@@ -41,7 +41,9 @@ extension EditorCoordinator {
     guard let lm = textView.textLayoutManager, let cs = lm.textContentManager,
       let loc = cs.location(cs.documentRange.location, offsetBy: location)
     else { return nil }
-    lm.ensureLayout(for: NSTextRange(location: loc))
+    // Exact positions need everything above laid out, not estimated.
+    lm.ensureLayout(
+      for: NSTextRange(location: cs.documentRange.location, end: loc) ?? cs.documentRange)
     guard let f = lm.textLayoutFragment(for: loc) else { return nil }
     let origin = textView.textContainerOrigin
     return CGPoint(
@@ -82,6 +84,8 @@ extension EditorCoordinator {
     }
     layoutMediaOverlays()
     placeToolbar()
+    // Our ensureLayout calls can leave the viewport stale; redraw what is on screen.
+    textView.textLayoutManager?.textViewportLayoutController.layoutViewport()
   }
 
   private func wire(_ entry: OverlayState.Table) {

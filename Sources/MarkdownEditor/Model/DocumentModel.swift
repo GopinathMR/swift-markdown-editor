@@ -88,6 +88,8 @@ struct Inline: Equatable, Sendable {
   /// Delimiters hidden unless the caret is inside `range`.
   var markers: [NSRange] = []
   var children: [Inline] = []
+  /// Image size from `<img width>` / `style="zoom:…"`: "50%", "300", "zoom:50%".
+  var size: String? = nil
 }
 
 struct BlockEntry: Sendable {

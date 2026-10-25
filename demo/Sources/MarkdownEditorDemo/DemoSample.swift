@@ -1,3 +1,5 @@
+import AppKit
+
 enum DemoSample {
   static let text = #"""
     ---
@@ -22,6 +24,12 @@ enum DemoSample {
 
     > [!TIP]
     > Callouts use GitHub's alert syntax.
+
+    ## Images
+
+    ![Hero banner](assets/hero.png)
+
+    Inline images sit in the text <img src="assets/hero.png" alt="small" style="zoom:8%" /> too.
 
     ## Lists
 
@@ -71,4 +79,37 @@ enum DemoSample {
 
     [^1]: Footnotes render at the bottom, with a hover preview.
     """#
+}
+
+extension DemoSample {
+  /// Write the tour and a generated image into Caches so relative image paths resolve.
+  @MainActor static func install() -> URL? {
+    let fm = FileManager.default
+    guard let caches = fm.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
+    let dir = caches.appendingPathComponent("MarkdownEditorDemo")
+    let assets = dir.appendingPathComponent("assets")
+    try? fm.createDirectory(at: assets, withIntermediateDirectories: true)
+    let hero = assets.appendingPathComponent("hero.png")
+    if !fm.fileExists(atPath: hero.path) {
+      let image = NSImage(size: NSSize(width: 1200, height: 360), flipped: false) { r in
+        NSGradient(colors: [.systemIndigo, .systemPink, .systemOrange])?.draw(in: r, angle: 20)
+        let title = NSAttributedString(
+          string: "swift-markdown-editor",
+          attributes: [
+            .font: NSFont.systemFont(ofSize: 84, weight: .heavy), .foregroundColor: NSColor.white,
+          ])
+        let s = title.size()
+        title.draw(at: NSPoint(x: (r.width - s.width) / 2, y: (r.height - s.height) / 2))
+        return true
+      }
+      if let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+        let png = rep.representation(using: .png, properties: [:])
+      {
+        try? png.write(to: hero)
+      }
+    }
+    let doc = dir.appendingPathComponent("Feature tour.md")
+    try? text.write(to: doc, atomically: true, encoding: .utf8)
+    return doc
+  }
 }
