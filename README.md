@@ -61,6 +61,25 @@ The package targets macOS 14+ and Swift 6. It depends on:
 | [Yams](https://github.com/jpsim/Yams) | YAML front matter |
 | [TOMLKit](https://github.com/LebJe/TOMLKit) | theme files |
 
+## Math support
+
+Math is typeset natively with SwiftMath; there is no MathJax. In addition to what SwiftMath handles itself, the editor supports:
+- **Macros:** `\newcommand`, `\renewcommand` and `\def`, defined anywhere and usable across the whole document.
+- **Numbering:** `\tag`, plus auto-numbering (off, AMS rule, or all), with `\label`/`\ref`/`\eqref` references.
+- **Environments:** `equation`, and `align`/`gather`/`multline`, which are drawn as `aligned`.
+- **`\displaylines`.**
+- **Physics package (opt-in):** `\abs`, `\norm`, `\dv`, `\pdv`, `\bra`, `\ket`, `\braket`, `\expval`, `\qty`, `\vb`, `\grad`, `\curl`, `\order`.
+- **`\ce` subset:** formulas, charges, coefficients and the arrows `->`, `<-`, `<=>`.
+
+**Not supported:**
+- `\middle` (dropped).
+- `\:`, `\;` and `\!` (approximated with `\,` spacing).
+- `\ce` beyond the subset above.
+- `\href`, `\class`, `\bbox`, `\unicode`.
+- `array` with rules, and the `CD` environment.
+
+Anything SwiftMath can't parse shows its error under the equation, and the source stays editable.
+
 ## How it works
 
 The text storage holds the raw markdown. Everything you see rendered is presentation on top of it:

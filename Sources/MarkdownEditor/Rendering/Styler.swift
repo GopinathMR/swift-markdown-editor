@@ -10,7 +10,17 @@ final class Styler {
   var theme: ResolvedTheme
   var preferences: EditorPreferences
   var mode: EditorMode = .rendered
-  var model = DocumentModel()
+  var model = DocumentModel() {
+    didSet { mathContextCache = nil }
+  }
+  private var mathContextCache: MathContext?
+
+  private var mathContext: MathContext {
+    if let c = mathContextCache { return c }
+    let c = MathContext.build(model, text: text, numbering: preferences.mathNumbering)
+    mathContextCache = c
+    return c
+  }
   var selection = NSRange(location: 0, length: 0)
   var containerWidth: CGFloat = 700
   var documentURL: URL?
@@ -280,11 +290,14 @@ final class Styler {
       styleCode(b, offset: offset, ctx: ctx, language: language, revealed: blockRevealed)
 
     case .math:
-      let latex = b.content.map { text.substring(with: $0.shifted(by: offset)) } ?? ""
-      let number = equationNumber(for: abs)
+      let raw = b.content.map { text.substring(with: $0.shifted(by: offset)) } ?? ""
+      let latex = MathPreprocessor.prepare(
+        raw, context: mathContext, physics: preferences.physicsPackage)
+      let prepared = MathPreprocessor.prepare(
+        latex, context: mathContext, physics: preferences.physicsPackage)
       let req = RenderRequest.math(
-        latex: latex, display: true, dark: theme.isDark, fontSize: theme.body.pointSize * 1.15,
-        number: number)
+        latex: prepared, display: true, dark: theme.isDark, fontSize: theme.body.pointSize * 1.15,
+        number: mathContext.numbers[abs.location])
       styleRenderedBlock(b, offset: offset, ctx: ctx, request: req, revealed: blockRevealed)
 
     case .diagram(let kind):
@@ -613,24 +626,6 @@ final class Styler {
       if parts.count == 2, parts[0].trimmingCharacters(in: .whitespaces) == key {
         return parts[1].trimmingCharacters(in: .whitespaces).trimmingCharacters(
           in: CharacterSet(charactersIn: "\"'"))
-      }
-    }
-    return nil
-  }
-
-  private func equationNumber(for r: NSRange) -> String? {
-    guard preferences.mathNumbering != .off else { return nil }
-    var n = 0
-    for e in model.entries {
-      if case .math = e.block.kind {
-        let latex = e.block.content.map { text.substring(with: $0.shifted(by: e.start)) } ?? ""
-        let numbered =
-          preferences.mathNumbering == .all || latex.contains("\\begin{equation}")
-          || latex.contains("\\tag")
-        if numbered { n += 1 }
-        if e.start == r.location {
-          return numbered ? MathPreprocessor.tag(in: latex) ?? "\(n)" : nil
-        }
       }
     }
     return nil
