@@ -198,6 +198,8 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
     restyle(indices)
     controller?.documentDidChange(model, text: storage.string)
     if container.bar != nil { find.refresh() }
+    if controller?.isFocusMode == true { applyFocus() }
+    if controller?.isTypewriterMode == true { centerCaret() }
   }
 
   func textViewDidChangeSelection(_ notification: Notification) {
@@ -289,6 +291,7 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
     let style = theme.style(dark: isDark)
     let resolved = ResolvedTheme(style: style, zoom: zoom, isDark: isDark)
     styler.theme = resolved
+    controller?.showsHeadingNumbers = style.headingNumbering
     textView.maxContentWidth = style.maxWidth.map { $0 * zoom }
     textView.backgroundColor = resolved.background
     scrollView.backgroundColor = resolved.background

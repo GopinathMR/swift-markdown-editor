@@ -329,3 +329,52 @@ final class Harness {
   #expect(r.rows.map(\.1) == ["a", "b"])
   #expect(r.image != nil)
 }
+
+@MainActor @Test func copyPutsMarkdownHTMLAndRTFOnThePasteboard() {
+  let h = Harness("Some **bold** and `code`.\n")
+  h.tv.setSelectedRange(NSRange(location: 0, length: 24))
+  #expect(h.c.handleCopy())
+  let pb = NSPasteboard.general
+  #expect(pb.string(forType: .string) == "Some **bold** and `code`")
+  #expect(pb.string(forType: .html)?.contains("<strong>bold</strong>") == true)
+  #expect(pb.data(forType: .rtf) != nil)
+}
+
+@MainActor @Test func pasteConvertsHTMLAndLinksSelections() {
+  let h = Harness("Read docs here.\n")
+  let pb = NSPasteboard.general
+  pb.clearContents()
+  pb.setString("https://example.com", forType: .string)
+  h.tv.setSelectedRange(NSRange(location: 5, length: 4))
+  #expect(h.c.handlePaste(plain: false))
+  #expect(h.c.storage.string == "Read [docs](https://example.com) here.\n")
+  pb.clearContents()
+  pb.setString("<p>Hi <b>there</b></p>", forType: .html)
+  pb.setString("Hi there", forType: .string)
+  h.caret(0)
+  #expect(h.c.handlePaste(plain: false))
+  #expect(h.c.storage.string.hasPrefix("Hi **there**Read"))
+}
+
+@MainActor @Test func focusModeDimsOtherBlocks() {
+  let h = Harness("One.\n\nTwo.\n")
+  let controller = MarkdownEditorController()
+  h.c.controller = controller
+  controller.coordinator = h.c
+  h.caret(7)
+  controller.isFocusMode = true
+  var dimmed = false
+  h.tv.textLayoutManager!.enumerateRenderingAttributes(
+    from: h.tv.textLayoutManager!.documentRange.location, reverse: false
+  ) { _, attrs, _ in
+    if attrs[.foregroundColor] != nil { dimmed = true }
+    return true
+  }
+  #expect(dimmed)
+}
+
+@Test func wordCountsSkipSyntaxAndCountCJK() {
+  let s = DocumentStats.compute("# Hello **world**\n\n- item 中文\n", model: nil, wpm: 200)
+  #expect(s.words == 5)
+  #expect(s.lines == 4)
+}

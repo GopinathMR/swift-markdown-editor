@@ -4,7 +4,6 @@ import AppKit
 /// inline substitutes (bullets, checkboxes, emoji, inline math) over hidden source.
 final class MarkdownLayoutFragment: NSTextLayoutFragment {
   /// Hook for focus mode: alpha for this paragraph (1 = normal).
-  private var coordinator: EditorCoordinator? { textLayoutManager?.delegate as? EditorCoordinator }
 
   private var paragraph: NSAttributedString? { (textElement as? NSTextParagraph)?.attributedString }
 
@@ -21,14 +20,6 @@ final class MarkdownLayoutFragment: NSTextLayoutFragment {
   }
 
   override func draw(at point: CGPoint, in context: CGContext) {
-    // TextKit draws on the main thread.
-    nonisolated(unsafe) let fragment = self
-    let alpha = MainActor.assumeIsolated { fragment.coordinator?.focusAlpha(for: fragment) ?? 1 }
-    if alpha < 1 {
-      context.saveGState()
-      context.setAlpha(alpha)
-      context.beginTransparencyLayer(auxiliaryInfo: nil)
-    }
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
     let deco = paragraph.flatMap {
@@ -44,10 +35,6 @@ final class MarkdownLayoutFragment: NSTextLayoutFragment {
     if let deco { drawBlock(deco, at: point, in: context, behind: false) }
     drawInline(at: point)
     NSGraphicsContext.restoreGraphicsState()
-    if alpha < 1 {
-      context.endTransparencyLayer()
-      context.restoreGState()
-    }
   }
 
   /// Container x → local drawing x.

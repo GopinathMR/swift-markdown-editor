@@ -70,29 +70,8 @@ struct OutlineSidebar: View {
   let controller: MarkdownEditorController
 
   var body: some View {
-    List {
-      Section("Outline") {
-        OutlineGroup(controller.outline, children: \.childrenOrNil) { item in
-          Button {
-            controller.reveal(item.id)
-          } label: {
-            Text(item.title.isEmpty ? "Untitled" : item.title)
-              .fontWeight(item.id == controller.currentHeading ? .semibold : .regular)
-              .foregroundStyle(
-                item.id == controller.currentHeading ? Color.accentColor : Color.primary
-              )
-              .lineLimit(1)
-          }
-          .buttonStyle(.plain)
-        }
-      }
-    }
-    .listStyle(.sidebar)
+    MarkdownOutline(controller: controller)
   }
-}
-
-extension OutlineItem {
-  var childrenOrNil: [OutlineItem]? { children.isEmpty ? nil : children }
 }
 
 struct StatusBar: View {

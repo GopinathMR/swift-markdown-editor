@@ -25,6 +25,8 @@ public final class MarkdownEditorController {
   /// UTF-16 offsets into the markdown source.
   public private(set) var selectedRange = NSRange(location: 0, length: 0)
   public var isFindVisible = false
+  /// Mirrors the theme's heading auto-numbering (outline shows numbers when on).
+  public internal(set) var showsHeadingNumbers = false
 
   @ObservationIgnored weak var coordinator: EditorCoordinator?
   @ObservationIgnored private var statsWork: DispatchWorkItem?

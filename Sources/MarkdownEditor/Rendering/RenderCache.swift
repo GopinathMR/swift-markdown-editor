@@ -35,6 +35,8 @@ final class RenderCache {
     self.renderer = renderer
   }
 
+  func peek(_ request: RenderRequest) -> RenderResult? { results[request] }
+
   func result(for request: RenderRequest) -> RenderResult? {
     if let r = results[request] { return r }
     if !pending.contains(request) {
@@ -97,4 +99,9 @@ final class RenderCache {
   func invalidate(where predicate: (RenderRequest) -> Bool) {
     for key in results.keys where predicate(key) { results[key] = nil }
   }
+}
+
+extension RenderCache {
+  /// A finished render, without scheduling one (clipboard: use what's ready).
+  func cached(_ request: RenderRequest) -> RenderResult? { peek(request) }
 }
