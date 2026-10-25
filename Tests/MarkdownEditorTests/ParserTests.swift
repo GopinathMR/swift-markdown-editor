@@ -110,7 +110,7 @@ func kinds(_ m: DocumentModel) -> [BlockKind] { m.entries.map(\.block.kind) }
   _ = p.parse(text as NSString)
   var rng = SystemRandomNumberGenerator()
   let inserts = ["x", "\n", "**", "# ", "```\n", "- ", "> ", " ", "|", "$$\n"]
-  for _ in 0..<200 {
+  for _ in 0..<600 {
     let ns = text as NSString
     let loc = Int.random(in: 0...ns.length, using: &rng)
     let edited: NSRange

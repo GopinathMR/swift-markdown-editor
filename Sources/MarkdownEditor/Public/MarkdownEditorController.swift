@@ -60,13 +60,17 @@ public final class MarkdownEditorController {
   private func scheduleStats(_ text: String) {
     statsWork?.cancel()
     let wpm = coordinator?.preferences.readingSpeedWPM ?? 382
+    let model = coordinator?.model
     let item = DispatchWorkItem { [weak self] in
-      MainActor.assumeIsolated {
-        guard let self else { return }
-        var s = DocumentStats.compute(text, model: self.coordinator?.model, wpm: wpm)
-        s.selectionWords = self.stats.selectionWords
-        s.selectionCharacters = self.stats.selectionCharacters
-        self.stats = s
+      // Counting is regex-heavy on big documents: do it off the main thread.
+      Task.detached(priority: .utility) {
+        var s = DocumentStats.compute(text, model: model, wpm: wpm)
+        await MainActor.run {
+          guard let self else { return }
+          s.selectionWords = self.stats.selectionWords
+          s.selectionCharacters = self.stats.selectionCharacters
+          self.stats = s
+        }
       }
     }
     statsWork = item

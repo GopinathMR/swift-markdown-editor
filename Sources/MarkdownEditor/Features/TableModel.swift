@@ -187,7 +187,8 @@ enum TableLayout {
       ceil((s as NSString).size(withAttributes: [.font: f]).width)
     }
     var widths = (0..<t.columnCount).map { c in
-      max(48, max(w(t.header[c], bold), t.rows.map { w($0[c], font) }.max() ?? 0) + 2 * padX + 8)  // + NSTextField cell inset
+      // + 8: NSTextField's own cell inset.
+      max(48, max(w(t.header[c], bold), t.rows.map { w($0[c], font) }.max() ?? 0) + 2 * padX + 8)
     }
     let total = widths.reduce(0, +)
     if total > width {

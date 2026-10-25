@@ -23,6 +23,18 @@ final class EditorTextView: NSTextView {
     }
   }
 
+  private lazy var rotors: [NSAccessibilityCustomRotor] = coordinator?.makeRotors() ?? []
+
+  override func accessibilityCustomRotors() -> [NSAccessibilityCustomRotor] {
+    super.accessibilityCustomRotors() + rotors
+  }
+
+  override func layout() {
+    super.layout()
+    // TextKit lays out the viewport here; keep overlays on their blocks.
+    coordinator?.overlaysNeedUpdate()
+  }
+
   override func viewDidChangeEffectiveAppearance() {
     super.viewDidChangeEffectiveAppearance()
     coordinator?.appearanceDidChange()

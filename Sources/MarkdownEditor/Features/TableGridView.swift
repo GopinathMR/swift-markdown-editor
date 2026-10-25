@@ -66,7 +66,7 @@ final class TableGridView: NSView, NSTextFieldDelegate {
   }
 
   private func rebuild() {
-    fields.flatMap { $0 }.forEach { $0.removeFromSuperview() }
+    for f in fields.flatMap({ $0 }) { f.removeFromSuperview() }
     fields = (0...model.rows.count).map { r in
       (0..<model.columnCount).map { c in
         let f = NSTextField(string: model[r - 1, c])

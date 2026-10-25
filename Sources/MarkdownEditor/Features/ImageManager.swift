@@ -455,7 +455,9 @@ extension EditorCoordinator {
   func layoutMediaOverlays() {
     var found: [(MediaEmbed, NSRange)] = []
     if mode == .rendered {
-      for (b, off) in model.blocks(where: { $0 == .html }) {
+      let near = nearViewport()
+      for (b, off) in model.blocks(where: { $0 == .html })
+      where NSIntersectionRange(b.range.shifted(by: off), near).length > 0 {
         var r = b.range.shifted(by: off)
         while r.length > 0, [0x0A, 0x0D].contains(text.character(at: r.end - 1)) { r.length -= 1 }
         if let m = MediaEmbed.parse(text.substring(with: r)) { found.append((m, r)) }

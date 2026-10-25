@@ -407,3 +407,26 @@ final class Harness {
     #expect(e.description.hasPrefix("Line 2"))
   }
 }
+
+@MainActor @Test func rotorsWalkTheStructure() {
+  let h = Harness(
+    "# Intro\n\nSee [docs](https://x.y) and ![Logo](l.png).\n\n- [x] shipped\n\n$$\nx^2\n$$\n\n## Next\n"
+  )
+  let rotors = h.tv.accessibilityCustomRotors().map(\.label)
+  for name in ["Headings", "Links", "Tables", "Images", "Equations", "Tasks"] {
+    #expect(rotors.contains(name))
+  }
+  #expect(
+    StructureRotor(.headings, coordinator: h.c).items().map(\.1) == [
+      "Heading level 1, Intro", "Heading level 2, Next",
+    ])
+  #expect(StructureRotor(.images, coordinator: h.c).items().map(\.1) == ["Image, Logo"])
+  #expect(StructureRotor(.math, coordinator: h.c).items().first?.1 == "Equation: x^2")
+  #expect(StructureRotor(.tasks, coordinator: h.c).items().first?.1 == "Checked: shipped")
+  h.caret(0)
+  let rotor = h.tv.accessibilityCustomRotors().first { $0.label == "Headings" }!
+  let params = NSAccessibilityCustomRotor.SearchParameters()
+  params.searchDirection = .next  // the default is .previous
+  let next = rotor.itemSearchDelegate!.rotor(rotor, resultFor: params)
+  #expect(next?.customLabel == "Heading level 1, Intro")
+}

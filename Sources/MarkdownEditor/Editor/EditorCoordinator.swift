@@ -20,6 +20,8 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
   let container: EditorContainerView
   let find = FindModel()
   let overlays = OverlayState()
+  /// Rotor delegates are held weakly by AppKit; keep them alive here.
+  var rotorDelegates: [StructureRotor] = []
 
   private(set) var model = DocumentModel()
   var preferences: EditorPreferences
@@ -31,6 +33,8 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
   private var restyleWorkItem: DispatchWorkItem?
   /// Set while we change the storage ourselves (external text, restyle) to skip delegate work.
   var isProgrammaticEdit = false
+  /// Bumped per load so a superseded chunked styling pass stops.
+  private var loadGeneration = 0
 
   var storage: NSTextStorage { textView.textStorage! }
   var text: NSString { storage.string as NSString }
@@ -109,8 +113,31 @@ final class EditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelega
     pendingEdits.removeAll()
     let result = parser.parse(text)
     adopt(result.model)
-    restyleAll()
+    // First screen now, the rest in chunks: a large file shows up before it's all styled.
+    styler.selection = textView.selectedRange()
+    if storage.length > 0 {
+      storage.setAttributes(
+        styler.baseAttributes(), range: NSRange(location: 0, length: storage.length))
+    }
+    let count = model.entries.count
+    let firstScreen = min(count, 250)
+    restyle(firstScreen > 0 ? IndexSet(integersIn: 0..<firstScreen) : IndexSet(integer: 0))
+    styleInChunks(from: firstScreen, generation: loadGeneration &+ 1)
     textView.undoManager?.removeAllActions()
+  }
+
+  private func styleInChunks(from start: Int, generation: Int) {
+    loadGeneration = generation
+    guard start < model.entries.count else { return }
+    DispatchQueue.main.async { [weak self] in
+      MainActor.assumeIsolated {
+        guard let self, self.loadGeneration == generation else { return }
+        let end = min(self.model.entries.count, start + 600)
+        guard start < end else { return }
+        self.keepingViewport { self.restyle(IndexSet(integersIn: start..<end)) }
+        self.styleInChunks(from: end, generation: generation)
+      }
+    }
   }
 
   /// The host replaced the text. Swap only the differing middle so the caret and layout

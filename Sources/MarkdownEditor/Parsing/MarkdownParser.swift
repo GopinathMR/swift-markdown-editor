@@ -2,28 +2,34 @@ import CodeEditLanguages
 import Foundation
 import SwiftTreeSitter
 
-/// tree-sitter markdown (block + inline) → `DocumentModel`, incrementally.
+/// tree-sitter markdown (block + inline) → `DocumentModel`.
 ///
-/// Top-level blocks are context-free values with ranges relative to their own start, so a
-/// block the edit didn't touch is reused as is (shifted), and a block whose text was seen
-/// before comes from the text cache.
+/// Top-level blocks are context-free values with ranges relative to their own start. An edit
+/// reparses only a window of top-level blocks around it and splices the result in; a full
+/// parse (opening a file) builds blocks in parallel. tree-sitter's own incremental reparse
+/// re-lexes the whole document for markdown with lists, code or math (measured: ~250 ms on
+/// 1.9 MB), so it isn't used.
 @MainActor
 final class MarkdownParser {
   var preferences: EditorPreferences {
-    didSet { if preferences != oldValue { cache.removeAll() } }
+    didSet {
+      if preferences != oldValue {
+        cache.removeAll()
+        builder = BlockBuilder(preferences: preferences)
+      }
+    }
   }
 
   private let blockParser = Parser()
-  private let inlineParser = Parser()
-  private var tree: MutableTree?
+  private var builder: BlockBuilder
   private var cache: [String: Block] = [:]
   private var previous: [BlockEntry] = []
 
   init(preferences: EditorPreferences) {
     self.preferences = preferences
-    // Both grammars are compiled into CodeEditLanguages; failure here is a packaging bug.
+    builder = BlockBuilder(preferences: preferences)
+    // The grammar is compiled into CodeEditLanguages; failure here is a packaging bug.
     try! blockParser.setLanguage(CodeLanguage.markdown.language!)
-    try! inlineParser.setLanguage(CodeLanguage.markdownInline.language!)
   }
 
   struct Result {
@@ -32,23 +38,154 @@ final class MarkdownParser {
     var changed: IndexSet
   }
 
+  /// Parse everything. Inline parsing dominates, and blocks are independent: fan out.
   func parse(_ text: NSString) -> Result {
-    tree = blockParser.parse(tree: nil as Tree?, readBlock: Self.reader(text))
-    previous = []
-    return build(text, edit: nil)
+    let nodes = topLevelNodes(text)
+    let count = nodes.count
+    var blocks = [Block?](repeating: nil, count: count)
+    var keys = [String](repeating: "", count: count)
+    let prefs = preferences
+    let cacheSnapshot = cache
+    let input = UncheckedBox((nodes, text))
+    let workers = max(1, min(ProcessInfo.processInfo.activeProcessorCount, count / 32 + 1))
+    blocks.withUnsafeMutableBufferPointer { blockBuf in
+      keys.withUnsafeMutableBufferPointer { keyBuf in
+        let out = UncheckedBox((blockBuf, keyBuf))
+        DispatchQueue.concurrentPerform(iterations: workers) { w in
+          let builder = BlockBuilder(preferences: prefs)
+          let (nodes, text) = input.value
+          var i = w
+          while i < nodes.count {
+            let r = nodes[i].range
+            // Same text can parse as another node type elsewhere; key on both.
+            let key = (nodes[i].nodeType ?? "") + "\u{0}" + text.substring(with: r)
+            out.value.1[i] = key
+            out.value.0[i] =
+              cacheSnapshot[key] ?? builder.makeBlock(nodes[i], base: r.location, text: text)
+            i += workers
+          }
+        }
+      }
+    }
+    var entries: [BlockEntry] = []
+    entries.reserveCapacity(count)
+    var newCache: [String: Block] = [:]
+    for i in 0..<count {
+      let r = nodes[i].range
+      let block =
+        blocks[i] ?? Block(kind: .paragraph, range: NSRange(location: 0, length: r.length))
+      newCache[keys[i]] = block
+      entries.append(BlockEntry(start: r.location, block: block))
+    }
+    cache = newCache
+    previous = entries
+    return finish(entries, changed: IndexSet(integersIn: 0..<entries.count), text: text)
   }
 
   /// `editedRange` is in the new text; `delta` is the change in length.
   func update(_ text: NSString, editedRange: NSRange, delta: Int) -> Result {
-    guard let tree else { return parse(text) }
-    let start = editedRange.location
-    let oldEnd = editedRange.end - delta
-    tree.edit(
-      InputEdit(
-        startByte: start * 2, oldEndByte: oldEnd * 2, newEndByte: editedRange.end * 2,
-        startPoint: .zero, oldEndPoint: .zero, newEndPoint: .zero))
-    self.tree = blockParser.parse(tree: tree, readBlock: Self.reader(text))
-    return build(text, edit: (editedRange, delta))
+    guard !previous.isEmpty else { return parse(text) }
+    let count = previous.count
+    let oldLength = text.length - delta
+    let first = previous.firstIndex { $0.range.end >= editedRange.location } ?? count - 1
+    let last = previous.lastIndex { $0.start <= editedRange.end - delta } ?? 0
+    var lo = max(0, min(first, last) - 1)
+    var hi = min(count - 1, max(first, last) + 1)
+    // Reparse lo...hi plus one untouched "probe" entry each side. The window is right when
+    // both probes come back unchanged; otherwise a neighbour joined in, so widen and retry.
+    for _ in 0..<12 {
+      let before = lo > 0 ? lo - 1 : nil
+      let after = hi + 1 < count ? hi + 1 : nil
+      let start = before.map { previous[$0].start } ?? 0
+      let endOld = after.map { $0 + 1 < count ? previous[$0 + 1].start : oldLength } ?? oldLength
+      guard var parsed = parseWindow(text, NSRange(location: start, length: endOld + delta - start))
+      else { break }
+      // An unclosed fence or comment runs to the end of the document: take everything.
+      if after != nil,
+        parsed.contains(where: { Self.swallowsRest($0.block, text: text, offset: $0.start) })
+      {
+        hi = count - 1
+        continue
+      }
+      var okBefore = true
+      var okAfter = true
+      if let b = before {
+        okBefore =
+          parsed.first.map { $0.start == previous[b].start && $0.length == previous[b].length }
+          ?? false
+        if okBefore { parsed.removeFirst() }
+      }
+      if let a = after {
+        okAfter =
+          parsed.last.map {
+            $0.start == previous[a].start + delta && $0.length == previous[a].length
+          } ?? false
+        if okAfter { parsed.removeLast() }
+      }
+      if okBefore && okAfter {
+        var entries = Array(previous[..<lo])
+        entries.reserveCapacity(count + parsed.count)
+        let changed = IndexSet(integersIn: entries.count..<(entries.count + parsed.count))
+        entries += parsed
+        for e in previous[(hi + 1)...] {
+          entries.append(BlockEntry(start: e.start + delta, block: e.block))
+        }
+        previous = entries
+        return finish(entries, changed: changed, text: text)
+      }
+      if !okBefore { lo = max(0, lo - 1) }
+      if !okAfter { hi = min(count - 1, hi + 1) }
+    }
+    return parse(text)
+  }
+
+  private func parseWindow(_ text: NSString, _ window: NSRange) -> [BlockEntry]? {
+    guard window.length >= 0, window.end <= text.length else { return nil }
+    let sub = text.substring(with: window) as NSString
+    var out: [BlockEntry] = []
+    for node in topLevelNodes(sub) {
+      let r = node.range
+      let key = (node.nodeType ?? "") + "\u{0}" + sub.substring(with: r)
+      let block =
+        cache[key] ?? builder.makeBlock(node, base: r.location, text: sub)
+        ?? Block(kind: .paragraph, range: NSRange(location: 0, length: r.length))
+      cache[key] = block
+      out.append(BlockEntry(start: window.location + r.location, block: block))
+    }
+    if cache.count > previous.count * 2 + 1024 { cache.removeAll() }
+    return out
+  }
+
+  private static func swallowsRest(_ b: Block, text: NSString, offset: Int) -> Bool {
+    switch b.kind {
+    case .code, .diagram: return b.markers.count == 1
+    case .comment: return !text.substring(with: b.range.shifted(by: offset)).contains("-->")
+    default: return false
+    }
+  }
+
+  private func topLevelNodes(_ text: NSString) -> [Node] {
+    guard let tree = blockParser.parse(tree: nil as Tree?, readBlock: Self.reader(text)),
+      let root = tree.rootNode
+    else { return [] }
+    var nodes: [Node] = []
+    func collect(_ node: Node) {
+      node.enumerateChildren { child in
+        if child.nodeType == "section" {
+          collect(child)
+        } else if child.range.length > 0 {
+          nodes.append(child)
+        }
+      }
+    }
+    collect(root)
+    return nodes
+  }
+
+  private func finish(_ entries: [BlockEntry], changed: IndexSet, text: NSString) -> Result {
+    var model = DocumentModel(entries: entries)
+    finishModel(&model, text: text)
+    return Result(model: model, changed: changed)
   }
 
   private static func reader(_ text: NSString) -> Parser.ReadBlock {
@@ -63,62 +200,88 @@ final class MarkdownParser {
     }
   }
 
-  // MARK: Top level
+  // MARK: Document-wide
 
-  private func build(_ text: NSString, edit: (range: NSRange, delta: Int)?) -> Result {
-    var nodes: [Node] = []
-    func collect(_ node: Node) {
-      node.enumerateChildren { child in
-        if child.nodeType == "section" { collect(child) } else { nodes.append(child) }
+  private func finishModel(_ model: inout DocumentModel, text: NSString) {
+    var slugCounts: [String: Int] = [:]
+    var counters = [Int](repeating: 0, count: 7)
+    var footnoteOrder: [String: Int] = [:]
+    for e in model.entries {
+      let b = e.block
+      switch b.kind {
+      case .heading(let level), .setextHeading(let level):
+        let title = visibleText(of: b, offset: e.start, text: text)
+        var slug = HeadingInfo.slug(title)
+        if let n = slugCounts[slug] {
+          slugCounts[slug] = n + 1
+          slug += "-\(n)"
+        } else {
+          slugCounts[slug] = 1
+        }
+        counters[level] += 1
+        for l in (level + 1)..<7 { counters[l] = 0 }
+        let top = counters[1...level].firstIndex { $0 > 0 } ?? level
+        let number = counters[top...level].map(String.init).joined(separator: ".")
+        model.headings.append(
+          HeadingInfo(level: level, title: title, slug: slug, range: e.range, number: number))
+      case .linkReferenceDefinition:
+        if let parts = b.info?.split(
+          separator: "\u{0}", maxSplits: 1, omittingEmptySubsequences: false), parts.count == 2
+        {
+          model.linkRefs[String(parts[0])] = String(parts[1])
+        }
+      case .footnoteDefinition(let id):
+        model.footnoteDefinitions[id] = e.range
+      case .frontMatter:
+        model.frontMatter = b.info
+      default: break
       }
-    }
-    if let root = tree?.rootNode { collect(root) }
-
-    // Old entries keyed by where they'd start now, if the edit didn't touch them.
-    var reusable: [Int: BlockEntry] = [:]
-    if let edit {
-      let oldEditEnd = edit.range.end - edit.delta
-      for e in previous {
-        if e.range.end < edit.range.location {
-          reusable[e.start] = e
-        } else if e.start > oldEditEnd {
-          reusable[e.start + edit.delta] = BlockEntry(start: e.start + edit.delta, block: e.block)
+      forEachInline(b) { i in
+        if case .footnoteRef(let id) = i.kind, footnoteOrder[id] == nil {
+          footnoteOrder[id] = footnoteOrder.count + 1
         }
       }
     }
+    model.footnoteNumbers = footnoteOrder
+  }
 
-    var entries: [BlockEntry] = []
-    var changed = IndexSet()
-    var newCache: [String: Block] = [:]
-    entries.reserveCapacity(nodes.count)
-    for node in nodes {
-      let r = node.range
-      guard r.length > 0 else { continue }
-      if let old = reusable[r.location], old.length == r.length {
-        entries.append(old)
-        continue
-      }
-      let key = text.substring(with: r)
-      let block =
-        cache[key] ?? makeBlock(node, base: r.location, text: text)
-        ?? Block(kind: .paragraph, range: NSRange(location: 0, length: r.length))
-      newCache[key] = block
-      changed.insert(entries.count)
-      entries.append(BlockEntry(start: r.location, block: block))
+  func visibleText(of b: Block, offset: Int, text: NSString) -> String {
+    let start = b.markers.first.map { $0.end } ?? b.range.location
+    var r = NSRange(location: start, length: b.range.end - start)
+    if case .setextHeading = b.kind, let u = b.markers.first {
+      r = NSRange(location: b.range.location, length: u.location - b.range.location)
     }
-    // Keep the cache bounded to what's live, plus what we just built.
-    cache.merge(newCache) { a, _ in a }
-    if cache.count > entries.count * 2 + 512 { cache = newCache }
-    previous = entries
+    let s = NSMutableString(string: text.substring(with: r.shifted(by: offset)))
+    var hidden: [NSRange] = []
+    func collect(_ list: [Inline]) {
+      for i in list {
+        hidden.append(contentsOf: i.markers)
+        collect(i.children)
+      }
+    }
+    collect(b.inlines)
+    for h in hidden.sorted(by: { $0.location > $1.location }) {
+      let local = h.shifted(by: -r.location)
+      if local.location >= 0, local.end <= s.length { s.deleteCharacters(in: local) }
+    }
+    return (s as String).trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+}
 
-    var model = DocumentModel(entries: entries)
-    finishModel(&model, text: text)
-    return Result(model: model, changed: changed)
+/// Builds context-free blocks (and their inlines) from tree-sitter nodes. Not thread-safe:
+/// one per thread, since it owns an inline parser.
+final class BlockBuilder: @unchecked Sendable {
+  let preferences: EditorPreferences
+  private let inlineParser = Parser()
+
+  init(preferences: EditorPreferences) {
+    self.preferences = preferences
+    try! inlineParser.setLanguage(CodeLanguage.markdownInline.language!)
   }
 
   // MARK: Blocks
 
-  private func makeBlock(_ node: Node, base: Int, text: NSString) -> Block? {
+  func makeBlock(_ node: Node, base: Int, text: NSString) -> Block? {
     let r = node.range
     let rel = NSRange(location: r.location - base, length: r.length)
     func relr(_ n: Node) -> NSRange {
@@ -746,72 +909,6 @@ final class MarkdownParser {
   private static let linkDetector = try! NSDataDetector(
     types: NSTextCheckingResult.CheckingType.link.rawValue)
 
-  // MARK: Document-wide
-
-  private func finishModel(_ model: inout DocumentModel, text: NSString) {
-    var slugCounts: [String: Int] = [:]
-    var counters = [Int](repeating: 0, count: 7)
-    var footnoteOrder: [String: Int] = [:]
-    for e in model.entries {
-      let b = e.block
-      switch b.kind {
-      case .heading(let level), .setextHeading(let level):
-        let title = visibleText(of: b, offset: e.start, text: text)
-        var slug = HeadingInfo.slug(title)
-        if let n = slugCounts[slug] {
-          slugCounts[slug] = n + 1
-          slug += "-\(n)"
-        } else {
-          slugCounts[slug] = 1
-        }
-        counters[level] += 1
-        for l in (level + 1)..<7 { counters[l] = 0 }
-        let top = counters[1...level].firstIndex { $0 > 0 } ?? level
-        let number = counters[top...level].map(String.init).joined(separator: ".")
-        model.headings.append(
-          HeadingInfo(level: level, title: title, slug: slug, range: e.range, number: number))
-      case .linkReferenceDefinition:
-        if let parts = b.info?.split(
-          separator: "\u{0}", maxSplits: 1, omittingEmptySubsequences: false), parts.count == 2
-        {
-          model.linkRefs[String(parts[0])] = String(parts[1])
-        }
-      case .footnoteDefinition(let id):
-        model.footnoteDefinitions[id] = e.range
-      case .frontMatter:
-        model.frontMatter = b.info
-      default: break
-      }
-      forEachInline(b) { i in
-        if case .footnoteRef(let id) = i.kind, footnoteOrder[id] == nil {
-          footnoteOrder[id] = footnoteOrder.count + 1
-        }
-      }
-    }
-    model.footnoteNumbers = footnoteOrder
-  }
-
-  func visibleText(of b: Block, offset: Int, text: NSString) -> String {
-    let start = b.markers.first.map { $0.end } ?? b.range.location
-    var r = NSRange(location: start, length: b.range.end - start)
-    if case .setextHeading = b.kind, let u = b.markers.first {
-      r = NSRange(location: b.range.location, length: u.location - b.range.location)
-    }
-    let s = NSMutableString(string: text.substring(with: r.shifted(by: offset)))
-    var hidden: [NSRange] = []
-    func collect(_ list: [Inline]) {
-      for i in list {
-        hidden.append(contentsOf: i.markers)
-        collect(i.children)
-      }
-    }
-    collect(b.inlines)
-    for h in hidden.sorted(by: { $0.location > $1.location }) {
-      let local = h.shifted(by: -r.location)
-      if local.location >= 0, local.end <= s.length { s.deleteCharacters(in: local) }
-    }
-    return (s as String).trimmingCharacters(in: .whitespacesAndNewlines)
-  }
 }
 
 func forEachInline(_ b: Block, _ f: (Inline) -> Void) {
@@ -867,4 +964,10 @@ extension HTMLStyle {
       }
     }
   }
+}
+
+/// For handing non-Sendable values to `concurrentPerform` workers that only read them.
+struct UncheckedBox<T>: @unchecked Sendable {
+  var value: T
+  init(_ value: T) { self.value = value }
 }

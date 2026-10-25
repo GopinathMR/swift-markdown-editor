@@ -34,6 +34,18 @@ extension EditorCoordinator {
 
   func viewportDidScroll() { overlaysNeedUpdate() }
 
+  /// Character range on screen, padded by a screenful each way.
+  func nearViewport() -> NSRange {
+    guard let lm = textView.textLayoutManager, let cs = lm.textContentManager,
+      let v = lm.textViewportLayoutController.viewportRange
+    else { return NSRange(location: 0, length: text.length) }
+    let a = cs.offset(from: cs.documentRange.location, to: v.location)
+    let b = cs.offset(from: cs.documentRange.location, to: v.endLocation)
+    let pad = max(4000, b - a)
+    let lo = max(0, a - pad)
+    return NSRange(location: lo, length: min(text.length, b + pad) - lo)
+  }
+
   private var padding: CGFloat { textView.textContainer?.lineFragmentPadding ?? 5 }
 
   /// Top-left (in text view coordinates) of the reserved space before `location`'s line.
@@ -51,7 +63,12 @@ extension EditorCoordinator {
   }
 
   func layoutOverlays() {
-    let tables = mode == .rendered ? model.blocks(where: { $0 == .table }) : []
+    let near = nearViewport()
+    let tables =
+      mode == .rendered
+      ? model.blocks(where: { $0 == .table }).filter {
+        NSIntersectionRange($0.block.range.shifted(by: $0.offset), near).length > 0
+      } : []
     while overlays.tables.count > tables.count {
       overlays.tables.removeLast().grid.removeFromSuperview()
     }
