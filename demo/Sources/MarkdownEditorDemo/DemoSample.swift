@@ -75,6 +75,11 @@ enum DemoSample {
       B --> D[Edit]
     ```
 
+    ```sequence
+    Writer->Editor: types markdown
+    Editor-->Writer: renders inline
+    ```
+
     ---
 
     [^1]: Footnotes render at the bottom, with a hover preview.

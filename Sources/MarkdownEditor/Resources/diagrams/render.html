@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  #out { display: inline-block; padding: 8px; }
+  #out.invert { filter: invert(1) hue-rotate(180deg); }
+</style>
+<script src="raphael.min.js"></script>
+<script src="flowchart.min.js"></script>
+<script src="underscore.min.js"></script>
+<script src="snap.svg.min.js"></script>
+<script>
+  // js-sequence wants WebFont even for the "simple" theme, which loads no fonts.
+  window.WebFont = { load: function (cfg) { if (cfg && cfg.active) cfg.active(); } };
+</script>
+<script src="sequence-diagram.min.js"></script>
+<script src="mermaid.min.js"></script>
+<script>
+  // Render-only page for swift-markdown-editor. Never shown, never edited.
+  let counter = 0;
+  async function renderDiagram(kind, source, dark) {
+    const out = document.getElementById('out');
+    out.innerHTML = '';
+    out.className = '';
+    if (kind === 'mermaid') {
+      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: dark ? 'dark' : 'default' });
+      const id = 'mmd' + (counter++);
+      try {
+        const { svg } = await mermaid.render(id, source);
+        out.innerHTML = svg;
+      } finally {
+        // Mermaid leaves a scratch node behind on errors.
+        document.querySelectorAll('[id^="d' + id + '"], #' + id).forEach(n => { if (!out.contains(n)) n.remove(); });
+      }
+    } else if (kind === 'flow') {
+      const c = dark ? '#dddddd' : '#333333';
+      flowchart.parse(source).drawSVG(out, {
+        'line-color': c, 'element-color': c, 'font-color': dark ? '#eeeeee' : '#222222', 'fill': 'transparent',
+        'font-size': 14, 'yes-text': 'yes', 'no-text': 'no'
+      });
+    } else {
+      Diagram.parse(source).drawSVG(out, { theme: 'simple' });
+      if (dark) out.className = 'invert';
+    }
+    const svg = out.querySelector('svg');
+    if (!svg) throw new Error('No diagram produced');
+    // Natural size: Mermaid ships width=100% plus a max-width.
+    const vb = svg.viewBox && svg.viewBox.baseVal;
+    if (vb && vb.width) {
+      svg.setAttribute('width', vb.width);
+      svg.setAttribute('height', vb.height);
+      svg.style.maxWidth = 'none';
+    }
+    const r = out.getBoundingClientRect();
+    return { svg: svg.outerHTML, width: Math.ceil(r.width), height: Math.ceil(r.height) };
+  }
+</script>
+</head>
+<body><div id="out"></div></body>
+</html>

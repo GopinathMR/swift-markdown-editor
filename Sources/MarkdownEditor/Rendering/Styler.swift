@@ -304,7 +304,7 @@ final class Styler {
       let src = b.content.map { text.substring(with: $0.shifted(by: offset)) } ?? ""
       styleRenderedBlock(
         b, offset: offset, ctx: ctx, request: .diagram(kind, source: src, dark: theme.isDark),
-        revealed: blockRevealed)
+        revealed: blockRevealed, debounce: true)
 
     case .html:
       let src = text.substring(with: abs)
@@ -526,10 +526,14 @@ final class Styler {
   /// Math, diagrams, HTML: the render replaces the source; with the caret inside, the source
   /// shows as a box with the render as a live preview below it.
   private func styleRenderedBlock(
-    _ b: Block, offset: Int, ctx: Ctx, request: RenderRequest, revealed: Bool
+    _ b: Block, offset: Int, ctx: Ctx, request: RenderRequest, revealed: Bool,
+    debounce: Bool = false
   ) {
     let abs = trimTrailingNewline(b.range.shifted(by: offset))
-    guard let result = renders.result(for: request) else {
+    let cached =
+      debounce && revealed
+      ? renders.result(for: request, debounceKey: abs.location) : renders.result(for: request)
+    guard let result = cached else {
       // Not rendered yet: show the source until it is.
       styleSourceBox(abs, ctx: ctx)
       return

@@ -10,6 +10,8 @@ enum Renderers {
     case .math(let latex, let display, let dark, let fontSize, let number):
       return MathRenderer.render(
         latex: latex, display: display, dark: dark, fontSize: fontSize, number: number)
+    case .diagram(let kind, let source, let dark):
+      return await DiagramRenderer.shared.render(kind, source: source, dark: dark)
     default:
       return RenderResult(image: nil, size: .zero, error: "Rendering not available yet")
     }

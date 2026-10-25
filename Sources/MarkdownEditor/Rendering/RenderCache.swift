@@ -48,6 +48,25 @@ final class RenderCache {
     return nil
   }
 
+  private var lastByKey: [Int: RenderResult] = [:]
+  private var debounce: [Int: DispatchWorkItem] = [:]
+
+  /// For a block being edited: render only after typing pauses, showing the block's last
+  /// render meanwhile so the preview doesn't flicker on every keystroke.
+  func result(for request: RenderRequest, debounceKey key: Int) -> RenderResult? {
+    if let r = results[request] {
+      lastByKey[key] = r
+      return r
+    }
+    debounce[key]?.cancel()
+    let item = DispatchWorkItem { [weak self] in
+      MainActor.assumeIsolated { _ = self?.result(for: request) }
+    }
+    debounce[key] = item
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
+    return lastByKey[key]
+  }
+
   /// Waits for a render (export needs every image, not placeholders).
   func resolve(_ request: RenderRequest) async -> RenderResult {
     if let r = results[request] { return r }

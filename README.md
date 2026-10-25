@@ -91,4 +91,8 @@ Because the stored text is the markdown, undo, find, spell check and source mode
 
 ## License
 
-Apache 2.0. Bundled data: gemoji (MIT), in `Sources/MarkdownEditor/Resources/gemoji`.
+Apache 2.0. Bundled third-party files, each with its licence alongside:
+- gemoji (MIT), in `Resources/gemoji`.
+- Mermaid 11 (MIT), flowchart.js (MIT), Raphaël (MIT), js-sequence-diagrams (BSD-2), Snap.svg (Apache 2.0) and Underscore (MIT), in `Resources/diagrams`.
+
+Diagrams are rendered by that JS in a hidden, offscreen WKWebView. The web view only ever renders a diagram to an image; it is never used for editing.
