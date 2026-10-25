@@ -7,6 +7,11 @@ It is built on TextKit 2, with no web view involved in editing.
 The text the host binds is the markdown itself. The editor never reformats it: open a file, close it without
 typing, and you get back the same bytes.
 
+![Demo app showing inline formatting, links, nested blockquotes, a tip callout, an image and the document outline](docs/screenshots/rendered-writing.jpg)
+
+The demo's built-in feature tour, captured in the running macOS app. The caret is in the Writing
+heading, revealing its markdown markers while the surrounding content stays rendered.
+
 ## Embedding
 
 ```swift
@@ -43,6 +48,14 @@ happen. `EditorPreferences` mirrors Typora's Markdown and Editor preferences, wi
 make demo                     # built-in feature tour
 make demo FILE=README.md      # edit a file; ⌘S saves
 ```
+
+Syntax-highlighted Swift, inline and display math, and a rendered table in the same editor pane:
+
+![Demo app rendering a Swift code block, Euler's identity, a Gaussian integral and a feature table](docs/screenshots/code-math-tables.jpg)
+
+Toggle **Source** in the toolbar to edit the underlying markdown. Here is the same section in source mode:
+
+![Demo app in source mode showing the markdown for the same code, math and table](docs/screenshots/source-mode.jpg)
 
 ## Development
 
