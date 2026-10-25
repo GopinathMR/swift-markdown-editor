@@ -31,6 +31,40 @@ struct DemoApp: App {
       CommandGroup(after: .newItem) {
         Button("Open…") { document.openPanel() }.keyboardShortcut("o")
       }
+      CommandGroup(after: .saveItem) { ExportMenu() }
+    }
+  }
+}
+
+/// File ▸ Export, driven through the focused editor's controller.
+struct ExportMenu: View {
+  @FocusedValue(\.markdownEditorController) private var controller
+
+  var body: some View {
+    Menu("Export") {
+      ForEach(controller?.availableExportFormats ?? [], id: \.self) { format in
+        Button(title(format)) { export(format) }
+      }
+    }
+    .disabled(controller == nil)
+  }
+
+  private func title(_ f: ExportFormat) -> String {
+    switch f {
+    case .html(let styled): return styled ? "HTML" : "HTML (without styles)"
+    case .pdf: return "PDF"
+    case .png: return "Image"
+    case .pandoc(let p): return "\(p.rawValue) (pandoc)"
+    }
+  }
+
+  private func export(_ f: ExportFormat) {
+    guard let controller else { return }
+    let panel = NSSavePanel()
+    panel.nameFieldStringValue = "Export.\(f.fileExtension)"
+    guard panel.runModal() == .OK, let url = panel.url else { return }
+    Task {
+      do { try await controller.export(f, to: url) } catch { NSAlert(error: error).runModal() }
     }
   }
 }
