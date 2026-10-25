@@ -20,12 +20,17 @@ func lineWidths(_ attr: NSAttributedString) -> (widths: [CGFloat], frames: [CGRe
 
 @MainActor @Test func hiddenMarkersCollapse() {
   let font = NSFont.systemFont(ofSize: 16)
-  let hidden: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 0.01), .foregroundColor: NSColor.clear]
-  let plain = NSAttributedString(string: "bold", attributes: [.font: NSFont.boldSystemFont(ofSize: 16)])
-  let md = NSMutableAttributedString(string: "**bold**", attributes: [.font: NSFont.boldSystemFont(ofSize: 16)])
+  let hidden: [NSAttributedString.Key: Any] = [
+    .font: NSFont.systemFont(ofSize: 0.01), .foregroundColor: NSColor.clear,
+  ]
+  let plain = NSAttributedString(
+    string: "bold", attributes: [.font: NSFont.boldSystemFont(ofSize: 16)])
+  let md = NSMutableAttributedString(
+    string: "**bold**", attributes: [.font: NSFont.boldSystemFont(ofSize: 16)])
   md.setAttributes(hidden, range: NSRange(location: 0, length: 2))
   md.setAttributes(hidden, range: NSRange(location: 6, length: 2))
-  let a = lineWidths(plain).widths[0], b = lineWidths(md).widths[0]
+  let a = lineWidths(plain).widths[0]
+  let b = lineWidths(md).widths[0]
   print("plain \(a) hidden \(b)")
   #expect(abs(a - b) < 0.5)
   // kern reserve: hidden shortcode + kern on last char reserves 30pt
@@ -37,7 +42,8 @@ func lineWidths(_ attr: NSAttributedString) -> (widths: [CGFloat], frames: [CGRe
   print("ab \(ab) reserved \(e)")
   #expect(abs(e - ab - 30) < 1)
   // block reserve: paragraphSpacingBefore
-  let ps = NSMutableParagraphStyle(); ps.paragraphSpacingBefore = 120
+  let ps = NSMutableParagraphStyle()
+  ps.paragraphSpacingBefore = 120
   let block = NSMutableAttributedString(string: "one\n$$\nx\n$$\n", attributes: [.font: font])
   block.addAttribute(.paragraphStyle, value: ps, range: NSRange(location: 4, length: 3))
   let r = lineWidths(block)
@@ -50,8 +56,10 @@ func lineWidths(_ attr: NSAttributedString) -> (widths: [CGFloat], frames: [CGRe
   let font = NSFont.systemFont(ofSize: 16)
   let tiny = NSFont.systemFont(ofSize: 0.01)
   let s = NSMutableAttributedString(string: "one\n$$\nx\n$$\ntwo", attributes: [.font: font])
-  s.addAttributes([.font: tiny, .foregroundColor: NSColor.clear], range: NSRange(location: 4, length: 8))
-  let ps = NSMutableParagraphStyle(); ps.paragraphSpacing = 100
+  s.addAttributes(
+    [.font: tiny, .foregroundColor: NSColor.clear], range: NSRange(location: 4, length: 8))
+  let ps = NSMutableParagraphStyle()
+  ps.paragraphSpacing = 100
   s.addAttribute(.paragraphStyle, value: ps, range: NSRange(location: 9, length: 3))
   let r = lineWidths(s)
   print("frames", r.frames)
