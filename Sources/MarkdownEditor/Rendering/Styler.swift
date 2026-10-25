@@ -354,6 +354,14 @@ final class Styler {
 
     case .frontMatter:
       styleSourceBox(abs, ctx: ctx, color: theme.secondary)
+      if let error = FrontMatter.parse(text.substring(with: abs)).error {
+        add(
+          abs,
+          [
+            .underlineStyle: NSUnderlineStyle.patternDot.union(.single).rawValue,
+            .underlineColor: NSColor.systemRed, .toolTip: error,
+          ])
+      }
 
     case .comment, .linkReferenceDefinition:
       if blockRevealed || b.kind == .linkReferenceDefinition && mode == .source {
@@ -625,14 +633,7 @@ final class Styler {
 
   func frontMatterValue(_ key: String) -> String? {
     guard let fm = model.frontMatter else { return nil }
-    for line in fm.split(separator: "\n") {
-      let parts = line.split(separator: ":", maxSplits: 1)
-      if parts.count == 2, parts[0].trimmingCharacters(in: .whitespaces) == key {
-        return parts[1].trimmingCharacters(in: .whitespaces).trimmingCharacters(
-          in: CharacterSet(charactersIn: "\"'"))
-      }
-    }
-    return nil
+    return FrontMatter.value(key, in: FrontMatter.parse(fm).values)
   }
 
   // MARK: Tables, TOC, media (rendered as drawn blocks; editing lives in overlays)
@@ -829,7 +830,7 @@ final class Styler {
       if style.mark { a[.backgroundColor] = theme.highlight }
       if style.kbd {
         a[.font] = theme.font(
-          size: (f.size ?? theme.body.pointSize) * 0.85, bold: false, italic: false, mono: true)
+          size: (f.size ?? theme.body.pointSize) * 0.85, bold: false, italic: false)
         a[.backgroundColor] = theme.codeBackground
       }
       if style.superscript || style.subscript {

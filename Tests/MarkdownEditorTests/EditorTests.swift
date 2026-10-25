@@ -283,3 +283,49 @@ final class Harness {
   #expect(
     h.c.storage.string == "Text\n\n<img src=\"pic.png\" alt=\"Pic\" style=\"zoom:50%\" />\n\nEnd\n")
 }
+
+@Test func htmlIsSanitizedAndConvertedToMarkdown() {
+  let dirty = #"<p onclick="x()">Hi <a href="javascript:alert(1)">x</a><script>bad()</script></p>"#
+  let clean = HTMLSanitizer.sanitize(dirty)
+  #expect(!clean.contains("script") && !clean.contains("onclick") && !clean.contains("javascript"))
+  #expect(HTMLSanitizer.isInvisible("<style>p{}</style><!-- c -->"))
+  let html = """
+    <h2>Title</h2><p>Some <b>bold</b>, <em>it</em> and <a href="https://x.y">link</a>.</p>
+    <ul><li>one</li><li>two<ul><li>nested</li></ul></li></ul>
+    <pre><code class="language-swift">let a = 1</code></pre>
+    <table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>
+    """
+  #expect(
+    HTMLToMarkdown.convert(html) == """
+      ## Title
+
+      Some **bold**, *it* and [link](https://x.y).
+
+      - one
+      - two
+        - nested
+
+      ```swift
+      let a = 1
+      ```
+
+      | A   | B   |
+      | --- | --- |
+      | 1   | 2   |
+      """)
+}
+
+@Test func frontMatterParsesAndFlagsErrors() {
+  let ok = FrontMatter.parse("---\ntitle: T\nexport:\n  title: X\n---\n")
+  #expect(ok.error == nil)
+  #expect(FrontMatter.value("export.title", in: ok.values) == "X")
+  #expect(FrontMatter.parse("---\ntitle: [unclosed\n---\n").error != nil)
+}
+
+@MainActor @Test func tocListsHeadingsWithRows() {
+  let h = Harness("# A\n\n[toc]\n\n## B\n\ntext\n")
+  let theme = h.c.styler.theme
+  let r = TOCRenderer.image(h.c.model.headings, theme: theme, width: 500)
+  #expect(r.rows.map(\.1) == ["a", "b"])
+  #expect(r.image != nil)
+}

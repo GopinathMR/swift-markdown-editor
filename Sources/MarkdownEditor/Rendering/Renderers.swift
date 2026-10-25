@@ -12,8 +12,8 @@ enum Renderers {
         latex: latex, display: display, dark: dark, fontSize: fontSize, number: number)
     case .diagram(let kind, let source, let dark):
       return await DiagramRenderer.shared.render(kind, source: source, dark: dark)
-    default:
-      return RenderResult(image: nil, size: .zero, error: "Rendering not available yet")
+    case .html(let html, let width, let dark):
+      return HTMLBlockRenderer.render(html, width: width, dark: dark)
     }
   }
 }
